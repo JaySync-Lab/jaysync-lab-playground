@@ -46,6 +46,13 @@ SESSION_GRACE_PERIOD_SECONDS = _env_int("SESSION_GRACE_PERIOD_SECONDS", 60)
 TTYD_HEALTHCHECK_TIMEOUT_SECONDS = _env_float("TTYD_HEALTHCHECK_TIMEOUT_SECONDS", 30.0)
 TTYD_HEALTHCHECK_POLL_INTERVAL_SECONDS = 1.0
 
+# CT 180 is a proper Proxmox template, so clones are linked clones — Phase 2
+# (implementation-log.md) measured these at ~1.5s. This timeout is a safety
+# margin for the task-completion poll, not the expected duration; a real
+# clone should finish it almost immediately.
+CLONE_TASK_TIMEOUT_SECONDS = _env_float("CLONE_TASK_TIMEOUT_SECONDS", 30.0)
+CLONE_TASK_POLL_INTERVAL_SECONDS = 0.5
+
 # --- ttyd / sandbox-segment networking ---
 # ASSUMPTION (untested against the real host): the plan documents the
 # controller as dual-homed (net0 on vmbr0, net1 on vmbr_sandbox) but leaves

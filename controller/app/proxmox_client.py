@@ -17,6 +17,7 @@ that step runs.
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
 
 from proxmoxer import ProxmoxAPI
@@ -80,12 +81,21 @@ class ProxmoxClient:
 
     def clone_template(self, vmid: int, hostname: str) -> CloneResult:
         logger.info("Cloning CT %s -> new CT %s (%s)", config.TEMPLATE_VMID, vmid, hostname)
-        self._node.lxc(config.TEMPLATE_VMID).clone.post(
+        # No `full` param: CT 180 is a proper Proxmox template (Phase 2), so
+        # the clone API defaults to a linked clone — fast (~1.5s, measured in
+        # implementation-log.md) and disk-efficient. Passing full=1 would
+        # force a full disk clone every session, contradicting the whole
+        # point of converting CT 180 into a template in the first place.
+        upid = self._node.lxc(config.TEMPLATE_VMID).clone.post(
             newid=vmid,
             hostname=hostname,
             pool=config.POOL_NAME,
-            full=1,
         )
+        # clone.post() returns a task UPID immediately — the clone itself is
+        # asynchronous. Modifying the new CT's config before the task
+        # actually finishes would race against Proxmox still creating it.
+        self._wait_for_task(upid)
+
         sandbox_ip = config.clone_sandbox_ip(vmid)
         # Static IP on the sandbox-only NIC — see the networking ASSUMPTION
         # in config.py. No gateway: vmbr_sandbox has no route out, by design.
@@ -93,6 +103,32 @@ class ProxmoxClient:
             net0=f"name=eth0,bridge=vmbr_sandbox,ip={sandbox_ip}/24,firewall=1"
         )
         return CloneResult(vmid=vmid, sandbox_ip=sandbox_ip)
+
+    def _wait_for_task(
+        self,
+        upid: str,
+        timeout: float | None = None,
+        poll_interval: float | None = None,
+    ) -> None:
+        """Poll a Proxmox task until it completes. Several Proxmox API calls
+        (clone included) return a task UPID immediately rather than blocking
+        until the operation finishes — callers must not assume completion
+        just because .post()/.put() returned. Reads config values at call
+        time (not as default-argument snapshots) so env-based overrides
+        always take effect."""
+        timeout = config.CLONE_TASK_TIMEOUT_SECONDS if timeout is None else timeout
+        poll_interval = (
+            config.CLONE_TASK_POLL_INTERVAL_SECONDS if poll_interval is None else poll_interval
+        )
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            status = self._node.tasks(upid).status.get()
+            if status.get("status") == "stopped":
+                if status.get("exitstatus") != "OK":
+                    raise RuntimeError(f"Proxmox task {upid} failed: {status.get('exitstatus')}")
+                return
+            time.sleep(poll_interval)
+        raise TimeoutError(f"Proxmox task {upid} did not complete within {timeout}s")
 
     def start(self, vmid: int) -> None:
         logger.info("Starting CT %s", vmid)
@@ -115,7 +151,10 @@ class ProxmoxClient:
                 exc_info=True,
             )
         logger.info("Destroying CT %s", vmid)
-        self._node.lxc(vmid).delete()
+        # force=1: last-resort safety net in case stop() above failed and the
+        # CT is still running — delete() would otherwise raise instead of
+        # guaranteeing cleanup, which is the one thing this method must not fail at.
+        self._node.lxc(vmid).delete(force=1)
 
     def uptime_seconds(self, vmid: int) -> float | None:
         """Real uptime from Proxmox itself — the reaper's ground truth for
