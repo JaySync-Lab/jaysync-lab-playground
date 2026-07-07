@@ -1,15 +1,13 @@
 """
 Central configuration for the playground session controller.
 
-UNTESTED-PENDING-HOST: none of the values below have been validated against
-the real Proxmox host — it was offline for this entire implementation pass
-(see PHASE3_EXECUTION_BRIEF.md). In particular, SANDBOX_SUBNET_PREFIX /
-CONTROLLER_SANDBOX_IP, SESSION_MAX_DURATION_MINUTES, and
-TTYD_HEALTHCHECK_TIMEOUT_SECONDS are explicit open items in
-playground-phase3-session-controller-plan.md ("pick a number once you see
-real clone/start timing... don't guess in advance"). The defaults here are
-placeholders to let the code run end-to-end once Step 3.1-3.3 are unblocked
-— not tuned values. Confirm/adjust once Step 3.4 runs against the real host.
+Tested against the real Proxmox host — see implementation-log.md Phase 3,
+Step 3.8. SANDBOX_SUBNET_PREFIX/CONTROLLER_SANDBOX_IP are confirmed correct
+against the real vmbr_sandbox layout. SESSION_MAX_DURATION_MINUTES and
+TTYD_HEALTHCHECK_TIMEOUT_SECONDS are still the original placeholder values
+(15 min, 30s) — Step 3.8 only needed to lower them temporarily for a
+practical timeout test, not to re-tune the real defaults, so treat those two
+as "proven to work," not "proven optimal."
 """
 
 import os

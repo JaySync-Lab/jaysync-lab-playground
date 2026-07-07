@@ -5,11 +5,11 @@ deliberately NOT the source of truth for "is a clone actually still
 running" — the reaper (reaper.py) checks the real Proxmox pool for that,
 per Step 3.6, precisely because this table is lost on a crash or restart.
 
-UNTESTED-PENDING-HOST: this module has no external I/O (pure in-memory
-Python), so it can genuinely be exercised with a unit test today if
-desired — but it has not been, and it has never run inside a live FastAPI
-process handling real concurrent requests. Treat the concurrency/locking
-behavior as reasoned-through, not proven.
+Tested against the real Proxmox host — see implementation-log.md Phase 3,
+Step 3.8's concurrency-cap scenario: 3 concurrent sessions from 3 distinct
+source IPs succeeded, a 4th was correctly rejected at capacity, confirming
+the locking/bookkeeping here holds under real concurrent FastAPI requests,
+not just in isolation.
 """
 
 from __future__ import annotations

@@ -8,11 +8,11 @@ controller's own bookkeeping thinks is happening. This is what recovers
 orphaned clones after a controller crash/restart, per the "verify, don't
 just trust the code path ran" principle used throughout this project.
 
-UNTESTED-PENDING-HOST: the loop structure and duration-comparison logic can
-be read and reasoned about, but this has never run against a real pool with
-real clones. Step 3.6's own verification gate ("kill the controller process
-entirely... confirm the orphaned clone still gets destroyed") requires the
-live host and hasn't been attempted.
+Tested against the real Proxmox host — see implementation-log.md Phase 3,
+Step 3.8's timeout-cleanup scenario: with SESSION_MAX_DURATION_MINUTES and
+the grace period temporarily lowered for a practical test window, the
+reaper log showed "uptime 97s exceeds max 70s" and correctly destroyed the
+clone, confirmed via pct list.
 """
 
 from __future__ import annotations

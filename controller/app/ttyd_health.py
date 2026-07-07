@@ -3,12 +3,13 @@ Waits for a session clone's ttyd port to become reachable after start, per
 Step 3.4 point 6: "if it never comes up, destroy the half-started clone and
 return 'playground unavailable' rather than handing back a broken session."
 
-UNTESTED-PENDING-HOST: this has never actually polled a real ttyd instance.
-TTYD_HEALTHCHECK_TIMEOUT_SECONDS in config.py is an explicit open item in
-the plan ("pick a number once you see real clone/start timing") — the
-default there is a guess, not a measured value, so even a successful run of
-this function today would only prove the polling loop works, not that the
-timeout is well-calibrated.
+Tested against the real Proxmox host — see implementation-log.md Phase 3,
+Step 3.8. Every real session created during that testing polled through
+this function successfully; TTYD_HEALTHCHECK_TIMEOUT_SECONDS (30s default)
+was never hit in practice (real clone+start+ttyd-up completed well under
+it), so the polling loop is proven, though the timeout value itself is
+still the original placeholder, not re-tuned against measured worst-case
+timing.
 """
 
 from __future__ import annotations

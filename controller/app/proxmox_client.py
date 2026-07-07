@@ -1,17 +1,16 @@
 """
 Thin wrapper around proxmoxer for everything the controller needs: cloning
-CT 180 into the playground-sandbox pool, starting/stopping/destroying
-clones, and reading real pool membership + uptime for the reaper.
+the golden template (TEMPLATE_VMID, see config.py) into the
+playground-sandbox pool, starting/stopping/destroying clones, and reading
+real pool membership + uptime for the reaper.
 
-UNTESTED-PENDING-HOST: every method in this file makes a real Proxmox API
-call. None of them have been exercised against the actual host — it was
-offline for the entirety of this implementation pass (see
-PHASE3_EXECUTION_BRIEF.md, Step 3.1). This module imports cleanly and the
-call shapes match the proxmoxer/Proxmox API as documented, but the only
-real verification the plan calls for — Step 3.3's "manual test clone via
-the API... succeeds using this token, before any controller code depends
-on it" — has not happened yet. Treat every method here as unverified until
-that step runs.
+Tested against the real Proxmox host — see implementation-log.md Phase 3,
+Step 3.8. Two real fixes came out of that testing, both still live in this
+file: _wait_for_task() treats a "WARNINGS: N" exitstatus as success (a
+benign advisory Proxmox emits on every clone, not a failure), re-confirmed
+with a 4-case mock test before merge; and next_free_vmid() explicitly skips
+TEMPLATE_VMID, since the post-retemplate template VMID (183) falls inside
+VMID_RANGE unlike the original (180).
 """
 
 from __future__ import annotations

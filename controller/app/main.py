@@ -2,14 +2,11 @@
 FastAPI app for the playground session controller (Phase 3, Steps 3.4-3.5),
 plus wiring for the Step 3.6 reaper as a lifespan-managed background task.
 
-UNTESTED-PENDING-HOST: this module wires together proxmox_client, sessions,
-ttyd_health, reaper, and ws_proxy into the two endpoints the plan specifies
-(POST /sessions, WS /ws/{session_id}). It imports cleanly and starts
-without crashing structurally (verified — see the summary), but none of its
-request/response paths have been exercised against a real Proxmox host or a
-real browser. Every "Verify before continuing" checklist item in
-playground-phase3-session-controller-plan.md for Steps 3.4/3.5/3.6 is still
-outstanding.
+Tested against the real Proxmox host — see implementation-log.md Phase 3,
+Step 3.8, for the full end-to-end scenarios and the bugs found along the way
+(most relevantly here: the DELETE endpoint and the tolerant destroy() error
+handling in both it and the WebSocket handler's finally block were both
+added during that step).
 """
 
 from __future__ import annotations
@@ -109,6 +106,25 @@ async def create_session(request: Request) -> SessionResponse:
     )
 
 
+@app.delete("/sessions/{session_id}")
+async def delete_session(session_id: str, token: str, request: Request) -> dict:
+    proxmox: ProxmoxClient = request.app.state.proxmox
+    session = await sessions.get(session_id)
+    if session is None or session.token != token:
+        raise HTTPException(status_code=404, detail="session not found")
+
+    await sessions.remove(session_id)
+    try:
+        proxmox.destroy(session.vmid)
+    except Exception:
+        # Session may already be gone (WS disconnect handler or the reaper
+        # got there first) -- the table entry is removed either way, and a
+        # destroy on an already-destroyed VMID must not surface as a 500
+        # for what is, from the caller's perspective, a successful teardown.
+        logger.warning("Destroy for CT %s failed (already gone?)", session.vmid, exc_info=True)
+    return {"status": "destroyed"}
+
+
 @app.websocket("/ws/{session_id}")
 async def websocket_session(websocket: WebSocket, session_id: str, token: str) -> None:
     session = await sessions.get(session_id)
@@ -130,5 +146,11 @@ async def websocket_session(websocket: WebSocket, session_id: str, token: str) -
         # "Disposable over resettable" — destroy immediately on disconnect,
         # don't wait for the timeout/reaper.
         await sessions.remove(session_id)
-        proxmox.destroy(session.vmid)
+        try:
+            proxmox.destroy(session.vmid)
+        except Exception:
+            # The reaper or a manual DELETE /sessions call may have already
+            # destroyed this CT (e.g. it timed out mid-connection) -- a
+            # redundant destroy attempt must not blow up the finally block.
+            logger.warning("Destroy for CT %s failed (already gone?)", session.vmid, exc_info=True)
         logger.info("Session %s ended, CT %s destroyed", session_id, session.vmid)

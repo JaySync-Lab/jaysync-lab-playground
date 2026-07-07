@@ -1,26 +1,24 @@
 # Playground Session Controller
 
-Implements Steps 3.4-3.7 of `../playground-phase3-session-controller-plan.md`.
-Steps 3.1-3.3 and 3.8 (decommissioning old CT 105, creating the new CT 105,
-the Proxmox pool/role/token, and the full end-to-end test) are paused until
-the Proxmox host is back online — see `../PHASE3_EXECUTION_BRIEF.md`.
+Implements Steps 3.2-3.8 of `../playground-phase3-session-controller-plan.md`
+in full, including Step 3.1's decommission of the old CT 105.
 
-## Status: UNTESTED-PENDING-HOST
+## Status: Tested against the real host
 
-Every file below has been checked structurally only: it imports cleanly,
-`main.py` builds a valid FastAPI app object, and there are no syntax or
-obvious logic errors on inspection. **Nothing here has run against a real
-Proxmox host, a real ttyd instance, or a real browser.** Do not treat any
-of this as "working" until Steps 3.3-3.8 actually pass — see each file's
-own docstring for exactly what's unverified in it.
+Every scenario in Step 3.8's end-to-end test plan has passed against the
+real Proxmox host, a real ttyd instance, and a real WebSocket client — see
+`../implementation-log.md` (Phase 3) for the full write-up, including three
+real bugs found and fixed during that testing (a `ws_proxy.py` handshake
+crash, a `ws_proxy.py` disconnect-hang, and a `nesting=1` regression in the
+golden template). See each file's own docstring for what was specifically
+verified there.
 
 ## Layout
 
-- `app/config.py` — env-driven configuration, including several
-  placeholder values the plan explicitly defers to real-host timing data
-  (session duration, ttyd healthcheck timeout) and one networking
-  assumption not specified in the plan (static IPs for clones on
-  `vmbr_sandbox` — flagged in the file, needs confirming against Step 3.2).
+- `app/config.py` — env-driven configuration. The `vmbr_sandbox` static-IP
+  scheme is confirmed correct against the real network; session duration
+  and ttyd healthcheck timeout are proven to work but still the original
+  placeholder values, not re-tuned against measured worst-case timing.
 - `app/proxmox_client.py` — proxmoxer wrapper: clone/start/stop/destroy,
   pool membership, uptime.
 - `app/sessions.py` — in-memory session table (capacity cap, per-IP limit,
@@ -37,7 +35,7 @@ own docstring for exactly what's unverified in it.
   the token from Step 3.3.
 - `requirements.txt` — fastapi, uvicorn, proxmoxer, requests, websockets.
 
-## Running once the host is back
+## Running
 
 ```
 python3 -m venv venv
@@ -48,4 +46,7 @@ venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 This will fail immediately (by design — see `proxmox_client.py`) unless
 `PROXMOX_HOST`, `PROXMOX_NODE`, `PROXMOX_TOKEN_ID`, and
-`PROXMOX_TOKEN_SECRET` are all set to real values from Step 3.3.
+`PROXMOX_TOKEN_SECRET` are all set to real values from Step 3.3. In
+production this runs as the `playground-controller` systemd service on
+CT 105, not via a manually-run `uvicorn` process — see
+`systemd/playground-controller.service`.
