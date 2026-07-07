@@ -124,8 +124,15 @@ class ProxmoxClient:
         while time.monotonic() < deadline:
             status = self._node.tasks(upid).status.get()
             if status.get("status") == "stopped":
-                if status.get("exitstatus") != "OK":
-                    raise RuntimeError(f"Proxmox task {upid} failed: {status.get('exitstatus')}")
+                exitstatus = status.get("exitstatus", "")
+                # Proxmox reports "OK" on a clean run and "WARNINGS: N" when
+                # the task completed but logged non-fatal warnings (e.g. the
+                # systemd/nesting advisory every clone of CT 180 emits, since
+                # it was deliberately built with nesting=0 in Phase 2) — both
+                # are successful completions. Only anything else (a real
+                # error string, or a missing exitstatus) is a genuine failure.
+                if exitstatus != "OK" and not exitstatus.startswith("WARNINGS"):
+                    raise RuntimeError(f"Proxmox task {upid} failed: {exitstatus}")
                 return
             time.sleep(poll_interval)
         raise TimeoutError(f"Proxmox task {upid} did not complete within {timeout}s")
