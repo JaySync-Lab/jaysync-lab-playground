@@ -74,7 +74,12 @@ class ProxmoxClient:
         ]
 
     def next_free_vmid(self, in_use: set[int]) -> int | None:
+        # TEMPLATE_VMID (183) falls inside VMID_RANGE (181-199) after the
+        # ttyd-binding retemplate -- must never be handed out as a session
+        # VMID, or a clone would collide with the golden template itself.
         for vmid in config.VMID_RANGE:
+            if vmid == config.TEMPLATE_VMID:
+                continue
             if vmid not in in_use:
                 return vmid
         return None
