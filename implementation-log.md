@@ -176,7 +176,51 @@ checks re-run against the clone. Confirmed:
 
 ## Phase 3 — Session Controller
 
-**Status: Not started**
+**Status: In progress**
+
+### Step 3.1 — Decommission old CT 105
+
+**What we did**
+- CT 105 (`production-documentation-engine`) was an old, unused LXC — an
+  earlier attempt at a docs engine that was never wired into anything real.
+  Inspected it fully before touching it, given this project's
+  manual-authorship philosophy: checked `/root`, `/home`, `/opt`, `/srv`,
+  crontab, `/etc/cron.d`, systemd timers, and listening ports for anything
+  that only existed on this container and was never committed to
+  `JaySync-Lab` or `jaysync-lab-site`.
+- Found one non-standard artifact: `/root/jaysync-build/`, a cron'd script
+  (`jaysync_collector.sh`, daily at midnight) that SSHed as root back into
+  the Proxmox host itself to pull `pct list`/`qm list` and regenerate a
+  `WIKI_HOMEPAGE.md` plus daily JSON "snapshots" from scratch every run.
+  Confirmed none of it was real authored content — both outputs were fully
+  synthetic and trivially reproducible from live Proxmox state, and the
+  wiki page itself described infrastructure that doesn't exist in this lab
+  (an Nginx Proxy Manager node and a `hass.lab.jaysync.com` domain, neither
+  of which are real). Nothing worth preserving.
+- Also confirmed nothing else on the network depended on CT 105 being up:
+  no listening service besides `sshd` and a loopback-only Postfix stub, no
+  Pi-hole custom DNS entry referencing it, no Uptime Kuma monitor pointing
+  at it.
+- Destroyed CT 105 (`pct stop 105` then `pct destroy 105`) to clear VMID 105
+  for reuse as the Phase 3 session controller host (Step 3.2).
+- Cleaned up CT 105's SSH key from the Proxmox host's own
+  `/root/.ssh/authorized_keys` — the collector script above had genuine,
+  working passwordless root access from CT 105 into the host itself (its
+  public key was actually present in the host's `authorized_keys`, not just
+  attempted). Removed that one line; confirmed exactly one line removed
+  (4 lines → 3) rather than assuming the edit was scoped correctly, and a
+  timestamped backup of the original file was kept.
+
+**Verification checklist (all confirmed)**
+- [x] Content inspection done before destroying anything — no real authored
+      content found, only a self-regenerating, partly-fabricated monitoring
+      script
+- [x] No network dependents found (listening ports, Pi-hole DNS, Uptime Kuma)
+- [x] `pct destroy 105` completed; `pct list` confirms 105 is gone
+- [x] VMID 105 free — `pct list` now shows only 100, 101, 104, 180 (plus 103
+      as the QEMU VM)
+- [x] Stale SSH key removed from the host's `authorized_keys`, with an
+      exact before/after line-count check (4 → 3), not just trusted
 
 ---
 
