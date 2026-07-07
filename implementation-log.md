@@ -314,7 +314,9 @@ venv install.
 **Drift found and fixed — tarball UID mapping**
 The first `pct push` of the controller code failed to extract
 (`Cannot change ownership to uid 197610... Invalid argument`) because the
-tarball carried Windows-side UIDs. Fixed with `tar -xzf ... --no-same-owner`.
+tarball carried high UIDs from the Windows filesystem context that the
+unprivileged CT's user namespace couldn't map, so `tar` couldn't apply that
+ownership inside the container. Fixed with `tar -xzf ... --no-same-owner`.
 
 **Drift found and fixed — `clone_template()` review findings, pre-Step-3.8**
 Code review before running any real test caught two issues in
