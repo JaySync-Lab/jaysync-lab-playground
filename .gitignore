@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+controller/.env
+controller/**/controller.env

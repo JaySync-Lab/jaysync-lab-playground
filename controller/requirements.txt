@@ -1,0 +1,5 @@
+fastapi>=0.110,<1.0
+uvicorn[standard]>=0.29,<1.0
+proxmoxer>=2.0,<3.0
+requests>=2.31,<3.0
+websockets>=12.0,<13.0

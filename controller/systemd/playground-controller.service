@@ -1,0 +1,30 @@
+# Step 3.7 systemd unit for the playground session controller.
+#
+# Tested against the real Proxmox host — see implementation-log.md Phase 3.
+# This exact unit is live on CT 105: systemctl status confirmed
+# active/running, Restart=on-failure confirmed by killing the process
+# directly, and the token file's permissions confirmed chmod 600, root-only.
+#
+# Deploy layout (matches the real CT 105 deployment):
+#   /opt/playground-controller/           <- this repo's controller/ dir
+#   /opt/playground-controller/venv/      <- Python 3.11+ virtualenv
+#   /etc/playground-controller/controller.env  <- copied from .env.example,
+#       filled in with the real token from Step 3.3, chmod 600
+
+[Unit]
+Description=Playground session controller (Phase 3)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=playground-ctrl
+Group=playground-ctrl
+WorkingDirectory=/opt/playground-controller
+EnvironmentFile=/etc/playground-controller/controller.env
+ExecStart=/opt/playground-controller/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
