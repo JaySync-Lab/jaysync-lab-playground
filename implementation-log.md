@@ -487,4 +487,75 @@ the template itself, not just inferred from a passing scenario.
 
 ---
 
+### Post-Phase 3 cleanup — golden template restored to VMID 180
+
+**What we did**
+Once the CT 180→183 retemplate from Step 3.8 was fully proven against the
+real host, moved the golden template back to VMID 180. This is a cosmetic/
+organizational fix, not a functional one: 183 worked correctly, but it fell
+*inside* `VMID_RANGE` (181-199) — the session-clone range — unlike the
+original 180, which sat outside it. That meant `next_free_vmid()` needed an
+explicit carve-out to avoid ever handing 183 out as a session VMID, which
+was correct but was extra state to keep in sync. Moving the template back
+to 180 removes that carve-out entirely and matches the VMID convention
+Phase 2 originally established.
+
+Procedure: cloned CT 183 → CT 180 (`pct clone 183 180`), verified the
+clone before converting anything, converted CT 180 to a template
+(`pct template 180`), re-pointed the two `/vms/*` ACL grants from `/vms/183`
+to `/vms/180` for both the user and the token, updated `config.py`
+(`TEMPLATE_VMID = 180`) and simplified `next_free_vmid()` to drop the
+now-unnecessary skip, redeployed to CT 105, and re-ran a full real
+`POST /sessions` test against the new CT 180 template before destroying
+CT 183.
+
+**Drift found and fixed — stale network config baked into CT 183**
+Verifying the CT 183→180 clone before conversion (per this project's
+"verify before the irreversible step" discipline) turned up something the
+plan's own expected checklist didn't anticipate: `ss -tlnp` showed ttyd
+already bound to `10.99.0.183:7681` immediately after a bare `pct start`,
+when it should have shown no binding yet (no IP assigned pre-controller).
+Root cause: `/etc/network/interfaces` inside the clone had a **hardcoded
+static IP (`10.99.0.183` — the old template's own address, not a
+placeholder) and a phantom `eth1 dhcp` stanza** referencing a NIC that
+doesn't even exist in this container's actual Proxmox config. Both were
+leftover from the manual diagnostic verification done during Step 3.8's
+original CT 180→183 retemplate (a real sandbox IP was assigned directly to
+that test clone to verify the ttyd wrapper script), never cleaned up before
+that clone was converted to the CT 183 template — so every clone of CT 183
+inherited it. This didn't cause visible failures in the real controller
+flow, since `clone_template()` always sets a fresh `net0` IP on every real
+session clone, and Proxmox rewrites this same file to match — but it would
+have baked stale, wrong network config into yet another golden template,
+and would confuse anyone doing a manual diagnostic clone the way Step 3.8's
+Bug 2 was originally found (a bare `pct start` with no controller
+involved). Same category of issue as Phase 2's own build-time `net1`
+cleanup before its template conversion. Fixed by rewriting
+`/etc/network/interfaces` to a clean `eth0 manual` state (no static IP, no
+`eth1` stanza) and rebooting before converting to a template; re-verified
+`ip -br addr show` showed only `eth0` with no IPv4 (link-local only,
+matching the original Phase 2 baseline) and ttyd correctly fell back to
+`127.0.0.1` per its documented fallback behavior.
+
+**Verification checklist (all confirmed)**
+- [x] `pct clone 183 180` confirmed as a real linked clone (`lvs` showed
+      `Origin base-183-disk-0`)
+- [x] Stale network config found and fixed before template conversion;
+      re-verified clean (`nesting=1`, no baked-in IP, `systemctl
+      is-system-running` → `running`, 0 failed units)
+- [x] `pct template 180` completed
+- [x] ACL grants moved from `/vms/183` to `/vms/180` for both user and
+      token; `pveum acl list` confirmed exactly 8 entries, none referencing
+      `/vms/183`
+- [x] `config.py`/`proxmox_client.py` updated and redeployed; checksums
+      confirmed matching between the repo and CT 105
+- [x] Full real `POST /sessions` test against the new CT 180 template:
+      clone sourced from `base-180-disk-0` (linked, not full), ttyd
+      reachable, real API response, curated commands (`status`, `neofetch`,
+      `tour`) all working end-to-end
+- [x] CT 183 destroyed only after the above was fully verified; `pct list`
+      and `lvs` confirmed no trace of it remaining
+
+---
+
 *(Further phases appended as we proceed.)*

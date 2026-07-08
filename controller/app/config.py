@@ -32,12 +32,13 @@ PROXMOX_VERIFY_SSL = os.environ.get("PROXMOX_VERIFY_SSL", "false").lower() == "t
 
 # --- Fixed by decisions already made in the plan ---
 POOL_NAME = "playground-sandbox"
-# Was 180; that template was destroyed and rebuilt at 183 to fix ttyd's
-# localhost-only binding (see proxmox_client.py's clone_template docstring
-# and implementation-log.md). 183 falls inside VMID_RANGE below, so
-# next_free_vmid() explicitly excludes TEMPLATE_VMID -- don't assume the
-# template always lives outside the session range.
-TEMPLATE_VMID = 183
+# 180 is the golden template again. It was briefly rebuilt at 183 to fix
+# ttyd's localhost-only binding (see proxmox_client.py's clone_template
+# docstring and implementation-log.md), then moved back to 180 once that fix
+# was proven, so the VMID convention matches Phase 2 again and 183 could be
+# retired. Unlike 183, 180 falls outside VMID_RANGE below, so
+# next_free_vmid() no longer needs to explicitly exclude it.
+TEMPLATE_VMID = 180
 VMID_RANGE = range(181, 200)  # 181-199 inclusive
 MAX_CONCURRENT_SESSIONS = 3
 MAX_SESSIONS_PER_SOURCE_IP = 1
