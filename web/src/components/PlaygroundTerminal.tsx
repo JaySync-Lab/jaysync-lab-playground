@@ -11,6 +11,8 @@ import {
   SESSION_DURATION_SECONDS,
   type SessionResponse,
 } from "@/lib/api";
+import { useBackendHealth } from "@/lib/useBackendHealth";
+import { OfflineState } from "@/components/OfflineState";
 
 type Phase = "idle" | "starting" | "connected" | "ended" | "error";
 
@@ -30,6 +32,10 @@ export function PlaygroundTerminal() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(SESSION_DURATION_SECONDS);
+
+  // Step 4.4: paused while a session is connected -- the open WebSocket is
+  // already proof the backend is up, no need to poll on top of it.
+  const online = useBackendHealth(phase === "connected");
 
   // Mount the xterm.js instance once, independent of session lifecycle,
   // so reconnecting doesn't tear down and rebuild the DOM terminal.
@@ -156,39 +162,59 @@ export function PlaygroundTerminal() {
   const minutes = Math.floor(secondsLeft / 60);
   const seconds = secondsLeft % 60;
 
+  // Only takes over the UI when no session is in flight -- if a session is
+  // already starting/connected, an existing WebSocket failure handles that
+  // gracefully on its own (endSession() -> "Connection lost."), rather than
+  // yanking the terminal away mid-session the instant a health poll blips.
+  const showOffline =
+    online === false && (phase === "idle" || phase === "ended" || phase === "error");
+
   return (
-    <div className="flex w-full max-w-4xl flex-col gap-3">
-      <div className="flex items-center justify-between text-sm font-mono text-zinc-400">
-        <span>
-          {phase === "connected" && (
-            <span className="text-accent">
-              ● session active — {minutes}:{seconds.toString().padStart(2, "0")} remaining
+    <div className="flex w-full max-w-4xl flex-col items-center gap-3">
+      {showOffline ? (
+        <OfflineState />
+      ) : (
+        <>
+          <div className="flex w-full items-center justify-between text-sm font-mono text-zinc-400">
+            <span>
+              {phase === "connected" && (
+                <span className="text-accent">
+                  ● session active — {minutes}:{seconds.toString().padStart(2, "0")} remaining
+                </span>
+              )}
+              {phase === "starting" && <span>connecting…</span>}
+              {phase === "idle" && <span>no active session</span>}
+              {phase === "ended" && (
+                <span className="text-danger">{errorMessage ?? "session ended"}</span>
+              )}
+              {phase === "error" && <span className="text-danger">{errorMessage}</span>}
             </span>
-          )}
-          {phase === "starting" && <span>connecting…</span>}
-          {phase === "idle" && <span>no active session</span>}
-          {phase === "ended" && <span className="text-danger">{errorMessage ?? "session ended"}</span>}
-          {phase === "error" && <span className="text-danger">{errorMessage}</span>}
-        </span>
-        {(phase === "idle" || phase === "ended" || phase === "error") && (
-          <button
-            onClick={startSession}
-            className="rounded-md border border-accent-dim bg-accent/10 px-4 py-1.5 font-mono text-accent transition-colors hover:bg-accent/20"
-          >
-            {phase === "idle" ? "Start session" : "Start new session"}
-          </button>
-        )}
-      </div>
+            {(phase === "idle" || phase === "ended" || phase === "error") && (
+              <button
+                onClick={startSession}
+                className="rounded-md border border-accent-dim bg-accent/10 px-4 py-1.5 font-mono text-accent transition-colors hover:bg-accent/20"
+              >
+                {phase === "idle" ? "Start session" : "Start new session"}
+              </button>
+            )}
+          </div>
+          <p className="w-full text-xs font-mono text-zinc-500">
+            Try <span className="text-zinc-300">tour</span> for a guided walkthrough,{" "}
+            <span className="text-zinc-300">status</span> or{" "}
+            <span className="text-zinc-300">neofetch</span> once connected. This is a
+            real, isolated container — destroyed automatically when the session ends.
+          </p>
+        </>
+      )}
+      {/* Kept mounted (not unmounted on offline) so the xterm.js instance
+          set up in the mount effect above always has a DOM home to attach
+          to; hidden rather than removed. */}
       <div
         ref={containerRef}
-        className="h-[480px] w-full rounded-lg border border-border bg-surface p-3"
+        className={`h-[480px] w-full rounded-lg border border-border bg-surface p-3 ${
+          showOffline ? "hidden" : ""
+        }`}
       />
-      <p className="text-xs font-mono text-zinc-500">
-        Try <span className="text-zinc-300">tour</span> for a guided walkthrough,{" "}
-        <span className="text-zinc-300">status</span> or{" "}
-        <span className="text-zinc-300">neofetch</span> once connected. This is a real,
-        isolated container — destroyed automatically when the session ends.
-      </p>
     </div>
   );
 }

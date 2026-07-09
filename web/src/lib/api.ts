@@ -48,15 +48,24 @@ export function wsUrl(wsPath: string, token: string): string {
   return `${scheme}//${httpUrl.host}${wsPath}?token=${encodeURIComponent(token)}`;
 }
 
-// Health check for the offline/maintenance detection in Step 4.4 -- not
-// wired into the UI yet, but the endpoint choice lives here so it's the
-// one place to change later.
-export async function checkHealth(): Promise<boolean> {
+// Step 4.4: dedicated, cheap health check -- no Proxmox calls, no schema
+// generation, just confirms the backend process is up and reachable
+// through the tunnel. A hung request (host genuinely down) is treated
+// the same as a network error via the timeout below, so this never
+// leaves the caller waiting indefinitely.
+export async function checkHealth(timeoutMs = 5000): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(`${API_URL}/openapi.json`, { cache: "no-store" });
+    const res = await fetch(`${API_URL}/health`, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
     return res.ok;
   } catch {
     return false;
+  } finally {
+    clearTimeout(timer);
   }
 }
 

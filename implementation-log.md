@@ -796,4 +796,54 @@ relay protocol did.
 
 ---
 
+### Step 4.4 — Offline / maintenance detection
+
+**What we did**
+- Added a dedicated `GET /health` endpoint to `main.py` — deliberately
+  cheap (no Proxmox calls, no OpenAPI schema generation), just confirms
+  the process is up. Picked this over reusing `/openapi.json` per the
+  plan's own open item ("reuse `/openapi.json` or add a dedicated
+  `/health`? ... cheaper, more explicit").
+- `checkHealth()` in `lib/api.ts` now hits `/health` with a 5s
+  `AbortController` timeout, so a genuinely hung/unreachable backend
+  resolves to "offline" within a bounded time rather than hanging the
+  check indefinitely.
+- `useBackendHealth()` hook: polls on mount and every 15s while idle,
+  paused entirely while a session is connected (an open WebSocket is
+  already proof the backend is up — no reason to poll on top of it, and
+  it keeps a health-check blip from ever interrupting an active session).
+- `OfflineState` component renders in place of the terminal controls when
+  the poll reports the backend down and no session is in flight. The
+  xterm.js container itself stays mounted (hidden via CSS, not
+  unmounted) so the persistent `Terminal` instance set up on first mount
+  never gets torn down and rebuilt.
+- Reserved, clearly-commented spot in `OfflineState` for Step 4.5's email
+  capture form — not built yet, deliberately.
+
+**Verification — live, not simulated**
+Rather than trust the polling logic by reading it, ran the actual
+down→up transition against the real deployed site with a single
+long-lived Playwright browser tab spanning the whole thing (no reload in
+between, which is the part that actually matters here):
+1. Stopped `playground-controller` on CT 105 for real
+   (`systemctl stop`), confirmed via `curl` that `/health` genuinely
+   returned `502` through the tunnel
+2. Loaded `https://jslnode.anujajay.com/` fresh while the backend was
+   down — offline state appeared in ~2.5s, not a hang or a broken UI
+3. Restarted `playground-controller` for real
+   (`systemctl start`) while that same browser tab stayed open
+4. The same tab, with no reload, returned to the normal "Start session"
+   state ~30s later (consistent with the 15s poll interval plus restart
+   time) — confirming recovery detection genuinely works without a
+   manual refresh, not just documenting it as an acceptable fallback
+
+**Verification checklist (all confirmed)**
+- [x] Manually stopped the controller; live site gracefully showed the
+      offline state within a reasonable time (~2.5s), not a broken/hung
+      UI
+- [x] Restarted the controller; site detected recovery and returned to
+      normal without a manual refresh (~30s, same browser tab throughout)
+
+---
+
 *(Further phases appended as we proceed.)*

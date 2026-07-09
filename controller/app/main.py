@@ -63,6 +63,15 @@ app.add_middleware(
 )
 
 
+@app.get("/health")
+async def health() -> dict:
+    # Step 4.4: the frontend polls this to detect whether the backend is
+    # reachable at all -- deliberately cheap (no Proxmox calls, no schema
+    # generation like /openapi.json), just confirms the process is up and
+    # serving requests through the tunnel.
+    return {"status": "ok"}
+
+
 class SessionResponse(BaseModel):
     session_id: str
     token: str
