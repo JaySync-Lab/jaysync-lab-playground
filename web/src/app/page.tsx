@@ -4,17 +4,20 @@ export default function Home() {
   return (
     <div className="relative flex min-h-screen flex-col items-center bg-background text-foreground">
       <section className="scanline-overlay grid-bg relative flex w-full flex-col items-center justify-center overflow-hidden px-6 pb-16 pt-24 text-center">
-        <p className="font-mono text-xs tracking-[0.3em] text-accent">
+        <p className="materialize font-mono text-xs tracking-[0.3em] text-accent">
           JAYSYNC-LAB // PLAYGROUND
         </p>
-        <h1 className="glow-text mt-4 max-w-2xl text-4xl font-semibold tracking-tight sm:text-5xl">
+        <h1 className="materialize materialize-delay-1 glow-text mt-4 max-w-2xl text-4xl font-semibold tracking-tight sm:text-5xl">
           A real Linux box.
           <br />
           Disposable on purpose.
         </h1>
-        <p className="mt-5 max-w-md font-mono text-sm text-zinc-400">
+        <p className="materialize materialize-delay-2 mt-5 max-w-md font-mono text-sm text-zinc-400">
           Clone, connect, explore. Isolated container, auto-destroyed on exit —
           no signup, no simulation.
+        </p>
+        <p className="materialize materialize-delay-3 mt-6 font-mono text-xs text-zinc-400">
+          root@playground:~$ <span className="cursor-blink text-accent">_</span>
         </p>
       </section>
 
@@ -22,7 +25,7 @@ export default function Home() {
         <PlaygroundTerminal />
       </main>
 
-      <footer className="w-full border-t border-border px-6 py-8 text-center font-mono text-xs text-zinc-500">
+      <footer className="w-full border-t border-border px-6 py-8 text-center font-mono text-xs text-zinc-400">
         <p>
           Built on a homelab running{" "}
           <a

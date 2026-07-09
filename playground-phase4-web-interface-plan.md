@@ -188,15 +188,20 @@ check before sending anything.
      — try it now", linking to `jslnode.anujajay.com`)
    - Clear the queue entirely after sending
    - Update a last-known-state marker in KV (used by the fallback below)
-6. **Fallback safety net:** a Vercel Cron job running once per hour,
-   calling the same health check and comparing against the last-known-state
-   marker. This exists purely for the edge case where the push ping never
-   fires or never reaches Vercel (e.g. the host's network comes up before
-   DNS/tunnel does, or the ping script itself fails) — without it, a
-   silent push failure could leave an outage's email queue stuck
-   indefinitely. This is a backstop, not the primary mechanism — the push
-   path should handle the overwhelming majority of real recoveries within
-   seconds, not up to an hour.
+6. **Fallback safety net:** a Vercel Cron job calling the same health
+   check and comparing against the last-known-state marker. This exists
+   purely for the edge case where the push ping never fires or never
+   reaches Vercel (e.g. the host's network comes up before DNS/tunnel
+   does, or the ping script itself fails) — without it, a silent push
+   failure could leave an outage's email queue stuck indefinitely. This
+   is a backstop, not the primary mechanism — the push path should
+   handle the overwhelming majority of real recoveries within seconds.
+   **Decided during execution:** originally planned as hourly, but
+   Vercel's Hobby plan only supports daily Cron schedules — accepted
+   once-daily (`0 6 * * *`) as a deliberate tradeoff rather than
+   upgrading the plan, since this is purely a backstop and the push path
+   is what actually matters for real recovery speed. Revisit if/when the
+   project moves to a paid plan.
 7. No email is sent on a simple "still up" check from either path — only
    on an actual down→up transition, and only once per address per outage.
 

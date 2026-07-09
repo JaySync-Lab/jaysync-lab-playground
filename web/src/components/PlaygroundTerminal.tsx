@@ -170,7 +170,7 @@ export function PlaygroundTerminal() {
     online === false && (phase === "idle" || phase === "ended" || phase === "error");
 
   return (
-    <div className="flex w-full max-w-4xl flex-col items-center gap-3">
+    <div className="flex w-full max-w-5xl flex-col items-center gap-3">
       {showOffline ? (
         <OfflineState />
       ) : (
@@ -198,7 +198,7 @@ export function PlaygroundTerminal() {
               </button>
             )}
           </div>
-          <p className="w-full text-xs font-mono text-zinc-500">
+          <p className="w-full text-xs font-mono text-zinc-400">
             Try <span className="text-zinc-300">tour</span> for a guided walkthrough,{" "}
             <span className="text-zinc-300">status</span> or{" "}
             <span className="text-zinc-300">neofetch</span> once connected. This is a
@@ -211,7 +211,7 @@ export function PlaygroundTerminal() {
           to; hidden rather than removed. */}
       <div
         ref={containerRef}
-        className={`h-[480px] w-full rounded-lg border border-border bg-surface p-3 ${
+        className={`h-[620px] w-full rounded-lg border border-accent-dim/40 bg-surface p-3 shadow-[0_0_40px_-12px_rgba(78,227,168,0.25)] ${
           showOffline ? "hidden" : ""
         }`}
       />
