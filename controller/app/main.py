@@ -13,10 +13,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import secrets
 import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from . import config
@@ -48,6 +50,17 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Playground Session Controller", lifespan=lifespan)
+
+# Step 4.1: the controller is now reachable publicly via the Cloudflare
+# Tunnel (api.jslnode.anujajay.com), so the frontend on its own separate
+# origin (jslnode.anujajay.com) needs explicit CORS allowance -- plus
+# localhost:3000 for local frontend dev against the real backend.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://jslnode.anujajay.com", "http://localhost:3000"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class SessionResponse(BaseModel):
@@ -110,7 +123,7 @@ async def create_session(request: Request) -> SessionResponse:
 async def delete_session(session_id: str, token: str, request: Request) -> dict:
     proxmox: ProxmoxClient = request.app.state.proxmox
     session = await sessions.get(session_id)
-    if session is None or session.token != token:
+    if session is None or not secrets.compare_digest(session.token, token):
         raise HTTPException(status_code=404, detail="session not found")
 
     await sessions.remove(session_id)
@@ -128,7 +141,7 @@ async def delete_session(session_id: str, token: str, request: Request) -> dict:
 @app.websocket("/ws/{session_id}")
 async def websocket_session(websocket: WebSocket, session_id: str, token: str) -> None:
     session = await sessions.get(session_id)
-    if session is None or session.token != token:
+    if session is None or not secrets.compare_digest(session.token, token):
         await websocket.close(code=4401)
         return
     if time.time() > session.expires_at:
