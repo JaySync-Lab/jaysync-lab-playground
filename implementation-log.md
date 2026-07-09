@@ -846,4 +846,28 @@ between, which is the part that actually matters here):
 
 ---
 
+### Step 4.5 — Recovery notification system (in progress)
+
+**Decision made during execution — Cron interval**
+The plan called for the fallback safety-net Cron job to run hourly.
+Discovered on first deploy attempt that Vercel's Hobby plan only permits
+*daily* Cron schedules — hourly is a Pro-plan feature. Accepted a
+once-daily schedule (`0 6 * * *`) as a deliberate tradeoff rather than
+upgrading the plan: this Cron job is explicitly a backstop, not the
+primary recovery mechanism (the push-triggered path from CT 105 is what
+actually matters for real recovery speed, typically seconds), so a
+24-hour worst-case window on the fallback alone is acceptable. Documented
+as an accepted tradeoff, not an unresolved gap — revisit if the project
+ever moves to a paid Vercel plan. See
+`playground-phase4-web-interface-plan.md` Step 4.5 for the same note in
+context.
+
+Full Step 4.5 write-up (KV queue, push endpoint, Cron fallback, systemd
+hook on CT 105) to follow once the Proxmox host is back online and the
+remaining CT 105-side setup + real end-to-end recovery test can happen —
+see the "blocked" note in the current session rather than duplicating it
+here prematurely.
+
+---
+
 *(Further phases appended as we proceed.)*
