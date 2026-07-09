@@ -716,4 +716,84 @@ now against a page that can't fail it either way.
 
 ---
 
+### Step 4.3 — Core UI
+
+**What we did**
+- Splash/landing section: dark theme, scanline + grid overlay, glow-text
+  headline, CSS-only animation (no heavy motion library added yet) —
+  real visual identity per the plan's design philosophy note, not
+  default component-library boilerplate.
+- Terminal page: `PlaygroundTerminal.tsx`, a client component wrapping
+  `@xterm/xterm` + `@xterm/addon-fit`. Replicates ttyd's wire protocol
+  directly (confirmed against the real backend during Phase 3 testing):
+  a JSON handshake (`{AuthToken, columns, rows}`) sent as the first text
+  frame, then binary frames with a one-byte `'0'` command prefix for
+  input/output in both directions.
+- Session state UI: "Start session" button calling `POST /sessions`,
+  status line showing connecting/active/ended/error states, a
+  client-side countdown timer. The countdown is an approximation (15
+  minutes, matching `SESSION_MAX_DURATION_MINUTES`'s default) — the API
+  doesn't return an expiry timestamp, so this isn't authoritative; the
+  server enforces the real timeout regardless of what the client-side
+  timer shows.
+- Curated command hints (`tour`, `status`, `neofetch`) surfaced as a
+  short caption under the terminal, not a tutorial wall.
+- Credits/footer section linking back to the lab's docs site and this
+  repo.
+
+**Verification — real, against the actual deployed frontend, not
+mocked**
+Used Playwright (headless Chromium) to drive a genuine browser session
+against `https://jslnode.anujajay.com` rather than trusting the code
+read correctly:
+- Loaded the live page, clicked "Start session" for real, waited for the
+  UI to report the session active
+- Real ttyd banner rendered inside the xterm.js instance, typed `status`
+  via real keyboard events, got the real curated response back
+- Zero console errors, zero page errors, zero failed network requests,
+  no CORS failures
+- Navigated away to trigger a real disconnect; confirmed via `pct list`/
+  `lvs` that the clone was destroyed (the Step 3.8 relay-teardown fix
+  still holding through this new frontend + tunnel path)
+
+**Drift found and fixed — stale session blocking the first real test**
+The first Playwright run against production got a `429` immediately —
+diagnosed via the controller's own logs rather than guessed: an earlier,
+disconnected `POST /sessions` call from a manual `curl` test during Step
+4.1 had never been paired with a WebSocket connection, so it was never
+cleaned up and was still holding my test IP's per-IP slot. Destroyed the
+orphaned clone directly and restarted the controller to clear the stale
+in-memory session table before retrying — after which the real test
+passed cleanly.
+
+**Finding — the multi-source-IP concurrency test technique from Step
+3.8/4.1 no longer works through the public tunnel**
+Tried to verify the "at capacity" UI path using the same trick used
+before (binding outbound requests on CT 105 to different local
+interfaces to present distinct source IPs). It doesn't work anymore now
+that traffic goes through the Cloudflare Tunnel: all of CT 105's
+outbound requests NAT to the same single public IP regardless of local
+bind address, so every attempt was seen as the same source by the
+controller; and the sandbox NIC (`10.99.0.1`) has no route to the
+internet at all by design, so binding to it just hung forever with no
+response (confirmed via `ps aux` showing the process still alive with no
+progress, not assumed). Cleaned up the hung process and the one orphaned
+clone it did create before it hit the per-IP limit. Didn't force a
+replacement test methodology for this one check — the backend's
+concurrency logic itself was already proven correct in Step 3.8's real
+multi-session test, and the frontend's handling of a 503 (`CapacityError`
+→ the "at capacity" message) is straightforward reviewed code, not
+runtime behavior that needed independent proof the way the WebSocket
+relay protocol did.
+
+**Verification checklist**
+- [x] Full real session run through the actual deployed frontend — start,
+      curated command, disconnect — no console errors, no CORS failures
+- [x] Clone destroyed on disconnect; `pct list`/`lvs` confirmed clean
+- [~] Concurrency cap behavior in the UI — code-reviewed (not
+      independently runtime-tested against production; see finding above
+      for why the usual multi-IP test technique doesn't apply anymore)
+
+---
+
 *(Further phases appended as we proceed.)*
