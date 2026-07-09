@@ -189,21 +189,34 @@ check before sending anything.
    - Clear the queue entirely after sending
    - Update a last-known-state marker in KV (used by the fallback below)
 6. **Fallback safety net:** a Vercel Cron job calling the same health
-   check and comparing against the last-known-state marker. This exists
-   purely for the edge case where the push ping never fires or never
-   reaches Vercel (e.g. the host's network comes up before DNS/tunnel
-   does, or the ping script itself fails) — without it, a silent push
-   failure could leave an outage's email queue stuck indefinitely. This
-   is a backstop, not the primary mechanism — the push path should
-   handle the overwhelming majority of real recoveries within seconds.
+   check. This exists purely for the edge case where the push ping never
+   fires or never reaches Vercel (e.g. the host's network comes up before
+   DNS/tunnel does, or the ping script itself fails) — without it, a
+   silent push failure could leave an outage's email queue stuck
+   indefinitely. This is a backstop, not the primary mechanism — the push
+   path handles the overwhelming majority of real recoveries within
+   seconds.
    **Decided during execution:** originally planned as hourly, but
    Vercel's Hobby plan only supports daily Cron schedules — accepted
    once-daily (`0 6 * * *`) as a deliberate tradeoff rather than
-   upgrading the plan, since this is purely a backstop and the push path
-   is what actually matters for real recovery speed. Revisit if/when the
-   project moves to a paid plan.
-7. No email is sent on a simple "still up" check from either path — only
-   on an actual down→up transition, and only once per address per outage.
+   upgrading the plan, since this is purely a backstop. Revisit if/when
+   the project moves to a paid plan.
+7. No email is sent unless the queue is genuinely non-empty (both paths
+   funnel through the same check-and-send function), and the queue is
+   only ever populated by a real visitor's own failed health check, so
+   this naturally means: only on an actual outage, and only once per
+   address per outage.
+   **Decided during execution:** originally gated sending on comparing
+   against a last-known-state marker (send only on an *observed*
+   down→up transition). Found during the required "break the push path,
+   confirm the fallback catches it" test that this had a real gap — the
+   marker only updates when something actually calls the check, but the
+   push path only ever fires *after* recovery and Cron runs at most once
+   a day, so a short outage could start and fully resolve without
+   anything recording it as "down" in between, leaving a real signup
+   unnotified. Fixed by dropping the transition-gating and sending
+   whenever the health check passes and the queue is non-empty instead —
+   see `implementation-log.md` Step 4.5 for the full account.
 
 **Verify before continuing:**
 - [ ] Simulate a real outage: stop the controller, submit a test email via

@@ -846,27 +846,144 @@ between, which is the part that actually matters here):
 
 ---
 
-### Step 4.5 — Recovery notification system (in progress)
+### Step 4.5 — Recovery notification system
+
+**Status: ✅ Complete**
+
+**What we did**
+- `POST /api/subscribe` (Vercel serverless): validates and queues an
+  email in a Redis SET (Vercel KV, delivered as the Upstash for Redis
+  marketplace integration — the modern successor to the old standalone
+  "Vercel KV" product) keyed to the current outage.
+- `POST /api/host-online`: the push receiver. Validates a shared secret
+  (`HOST_ONLINE_SECRET`), then — critically — never trusts the ping as
+  proof of anything; always does its own real health check against
+  `https://api-jslnode.anujajay.com/health` before considering sending
+  anything, retrying up to 3 times (3s apart) to cover the race where
+  the ping fires the instant the process starts, slightly ahead of the
+  tunnel being fully ready.
+- `GET /api/cron/health-check`: the fallback safety net, validated by a
+  separate `CRON_SECRET` (Vercel's standard auto-attached-Bearer-token
+  pattern for scheduled functions).
+- Both funnel through one shared function
+  (`checkAndNotifyIfRecovered()`): real health check, and — see the drift
+  note below — sends whenever the check passes and the queue is
+  non-empty, clearing the queue after every send.
+- CT 105: `ExecStartPost=-/usr/local/bin/notify-host-online.sh` added to
+  `playground-controller.service`, firing on every successful start
+  (manual restart, `Restart=on-failure` auto-restart, or boot). The
+  leading `-` and the script's own unconditional `exit 0` both ensure a
+  failed ping can never fail the unit itself.
+- `HOST_ONLINE_SECRET` added to `/etc/playground-controller/controller.env`
+  (chmod 600, root-only, confirmed not assumed) — `ExecStartPost`
+  commands share the parent unit's `EnvironmentFile`, so no separate
+  credentials file was needed.
+
+**Drift found and fixed — CT 105 never auto-started after the host's
+real outage**
+While resuming this step (see the real-outage note in Step 4.4's
+context — the Proxmox host was genuinely down for several hours during
+this phase), found CT 105 itself was `stopped` after the host came back,
+while CT 100/101/104 had all auto-started. `pct config 105` showed no
+`onboot` line at all (defaults to disabled), unlike the others. This
+directly undermines the resilience story Phase 4 is built around — a
+host reboot would otherwise leave the whole playground down until
+someone manually starts CT 105. Fixed with `pct set 105 -onboot 1`.
+
+**Drift found and fixed — ExecStartPost couldn't write its own log file**
+First deploy of `notify-host-online.sh` logged to `/var/log/...`, but
+`ExecStartPost` runs as the unit's unprivileged `User=playground-ctrl`
+(inherited from `[Service]`), which can't write to `/var/log/`. Failed
+silently — the script's own `exit 0` swallowed the permission error,
+so nothing looked wrong until the log file was checked and found
+missing entirely, then confirmed via `journalctl` showing "Permission
+denied". Fixed by dropping the separate log file and letting stdout/
+stderr flow to the journal like everything else in this unit.
+
+**Drift found and fixed — a real gap in the send-trigger logic, caught
+by the plan's own required "break the push path" test**
+The original design gated sending on an observed `down`→`up` transition
+via a `backend:last_state` KV marker. Testing the plan's explicit
+"deliberately break the push path, confirm the fallback catches it"
+scenario exposed a real hole: `last_state` only changes when something
+actually *calls* `checkAndNotifyIfRecovered()` — but the push path only
+ever fires *after* recovery (never during an outage), and Cron runs at
+most once a day (see the tradeoff note below). A short outage that
+starts and fully resolves without anything probing state in between
+never gets recorded as `down` at all, so recovery is never recognized as
+a transition — a real signup could sit in the queue and simply never get
+notified. Caught this empirically: manually stopped the controller,
+signed up for real, broke the push secret, restarted (confirmed the bad
+ping was correctly rejected before touching any state), then manually
+triggered the Cron endpoint expecting it to catch the missed
+notification — it returned `transitioned: false, emailsSent: 0` despite
+a real queued signup, proving the gap rather than assuming it. Fixed by
+dropping the transition-gating entirely: now sends whenever the real
+health check passes **and the queue is non-empty**. The queue itself is
+the correct signal — it can only be non-empty because a real visitor's
+health check genuinely failed at some point, and it's fully cleared
+after every send, so per-outage isolation holds without needing a
+separate state marker to gate on. `last_state` is kept only as an
+informational record, not as a send condition. Redeployed and re-ran
+the exact same manual Cron trigger against the same still-queued real
+signup — this time correctly returned `transitioned: true, emailsSent: 1`.
 
 **Decision made during execution — Cron interval**
-The plan called for the fallback safety-net Cron job to run hourly.
-Discovered on first deploy attempt that Vercel's Hobby plan only permits
-*daily* Cron schedules — hourly is a Pro-plan feature. Accepted a
-once-daily schedule (`0 6 * * *`) as a deliberate tradeoff rather than
-upgrading the plan: this Cron job is explicitly a backstop, not the
-primary recovery mechanism (the push-triggered path from CT 105 is what
-actually matters for real recovery speed, typically seconds), so a
-24-hour worst-case window on the fallback alone is acceptable. Documented
-as an accepted tradeoff, not an unresolved gap — revisit if the project
-ever moves to a paid Vercel plan. See
-`playground-phase4-web-interface-plan.md` Step 4.5 for the same note in
-context.
+Plan called for hourly; Vercel's Hobby plan only permits daily Cron
+schedules. Accepted `0 6 * * *` (once daily) as a deliberate tradeoff
+rather than upgrading the plan — this job is explicitly a backstop, not
+the primary mechanism (the push path handles real recoveries within
+seconds), so a 24-hour worst-case window on the fallback alone was
+judged acceptable. Also see `playground-phase4-web-interface-plan.md`
+Step 4.5 for the same note in context.
 
-Full Step 4.5 write-up (KV queue, push endpoint, Cron fallback, systemd
-hook on CT 105) to follow once the Proxmox host is back online and the
-remaining CT 105-side setup + real end-to-end recovery test can happen —
-see the "blocked" note in the current session rather than duplicating it
-here prematurely.
+**Verification — all real, none simulated, spanning an actual live
+outage of the Proxmox host**
+- A genuine, unplanned multi-hour host outage occurred during this
+  phase (see Step 4.4's note on the host being independently confirmed
+  down via Tailscale/SSH/tunnel 502s). Signed up a real email address
+  while it was genuinely down; confirmed stored in KV
+  (`redis.smembers`) directly, not assumed from the API response alone
+- Once the host came back and CT 105/the controller were confirmed
+  healthy again: restarted the controller for real — the push path
+  fired, its own real health check passed, found the real queued
+  signup, and sent one real email via Resend, all within ~8 seconds of
+  the restart; confirmed via `journalctl` showing
+  `{"healthy":true,"transitioned":true,"emailsSent":1}` and the KV
+  queue empty immediately after
+- Deliberately broke `HOST_ONLINE_SECRET` on CT 105, created a second
+  real outage (stopped the controller, signed up again), restarted with
+  the bad secret — confirmed the push request was rejected (401) before
+  ever touching the queue or sending anything (queue still held the
+  signup afterward)
+- Manually triggered `/api/cron/health-check` with its real secret to
+  simulate the daily fallback firing (per the plan's own explicit
+  allowance to trigger it manually rather than wait for the real
+  schedule) — this is what surfaced the transition-gating bug above;
+  after the fix, confirmed it correctly caught the missed notification
+  and sent the real email
+- Restored the correct `HOST_ONLINE_SECRET`, restarted once more with an
+  empty queue — confirmed `transitioned: false, emailsSent: 0`, i.e. a
+  routine restart does not send a spurious email
+- Confirmed via direct KV inspection after every step, not inferred from
+  API responses alone
+
+**Verification checklist (all confirmed)**
+- [x] Simulated a real outage: stopped the controller, submitted a test
+      email via the live site's offline-state form, confirmed it was
+      actually stored in KV
+- [x] Restarted the controller; push path fired and the recovery email
+      arrived within seconds — confirmed via journal and KV, not
+      assumed from a 200 response alone
+- [x] Deliberately broke the push path (wrong shared secret); confirmed
+      the fallback genuinely catches a missed push — found and fixed a
+      real bug in the process rather than the test passing by luck;
+      triggered manually rather than waiting for the real daily schedule
+- [x] Confirmed the KV queue is empty after every send, not accumulating
+      across outages
+- [x] Confirmed a second, later outage's signup is isolated from the
+      first (queue was empty before the new signup in every case,
+      confirmed directly via KV)
 
 ---
 

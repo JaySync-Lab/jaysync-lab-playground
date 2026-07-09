@@ -23,6 +23,13 @@ Group=playground-ctrl
 WorkingDirectory=/opt/playground-controller
 EnvironmentFile=/etc/playground-controller/controller.env
 ExecStart=/opt/playground-controller/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+# Step 4.5: fires the instant this unit is considered started -- pings
+# Vercel's push-notification endpoint, which never trusts this ping alone
+# and always does its own real health check before sending anything. The
+# leading "-" means a failure here (network blip, DNS not ready yet) must
+# never fail the unit itself -- notify-host-online.sh also always exits 0
+# on its own, this is belt-and-suspenders.
+ExecStartPost=-/usr/local/bin/notify-host-online.sh
 Restart=on-failure
 RestartSec=5
 
