@@ -652,4 +652,68 @@ loopback)**
 
 ---
 
+### Step 4.2 — Frontend scaffold
+
+**What we did**
+- Scaffolded a new Next.js app in `web/` (App Router, TypeScript,
+  Tailwind v4, `src/` layout with the `@/*` path alias) via
+  `create-next-app`, matching `jaysync-lab-site`'s general stack style
+  (Next.js + TypeScript + Tailwind, `src/app/`). Next.js 16 / React 19
+  were picked up as the current latest rather than pinning to
+  `jaysync-lab-site`'s exact versions — no shared dependency between the
+  two projects requires them to match.
+- Replaced the `create-next-app` default homepage with a minimal
+  placeholder ("JaySync-Lab Playground / Coming online.") and updated the
+  page metadata (title/description) — deliberately no real design yet,
+  per this step's scope.
+- Added `NEXT_PUBLIC_API_URL=https://api-jslnode.anujajay.com` as an
+  environment variable, not hardcoded anywhere — confirmed via a full
+  grep of `src/` for the API hostname (no hits; the placeholder page
+  doesn't call the backend at all yet, so the variable isn't consumed by
+  any code until Step 4.3, but it's in place and gitignore-correct:
+  `.env.local` (real value, git-ignored) plus a tracked `.env.example`,
+  which needed an explicit `!.env.example` negation added to
+  `create-next-app`'s default `.env*` ignore pattern.
+- Created a new Vercel project (`jslnode`, under the same
+  `anuja-jayasinghes-projects` scope as `jaysync-lab-site`), registered
+  `NEXT_PUBLIC_API_URL` in all three Vercel environments (production,
+  preview, development), and deployed to production.
+- Connected the custom domain `jslnode.anujajay.com`. Vercel required a
+  DNS `A` record (`jslnode.anujajay.com` → `76.76.21.21`) on the zone's
+  actual DNS provider (Cloudflare) — added directly by the human operator
+  in the Cloudflare dashboard (DNS-only/grey-cloud, not proxied, so
+  Vercel terminates TLS for this hostname directly rather than layering
+  Cloudflare's proxy on top of it, avoiding the kind of cert-coverage
+  confusion Step 4.1 just went through on the backend subdomain).
+
+**Verification**
+- `nslookup jslnode.anujajay.com` → resolves correctly to Vercel's edge
+  (`76.76.21.21`)
+- `curl https://jslnode.anujajay.com/` → real `200 OK`, correct page
+  title/metadata, the actual placeholder content rendered server-side
+- Confirmed no hardcoded backend URL anywhere in `src/` (grep, zero hits)
+
+**On the "independent of CT 105" check (Step 4.2's plan item 5, 2nd
+bullet):** this step's placeholder page makes **zero calls to the
+backend** — no fetch, no API call, fully static prerendered content. So
+stopping the controller service right now would prove nothing (the page
+would load identically either way, since it never talks to CT 105 at
+all). Confirmed via the same `src/` grep above rather than assumed. This
+check only becomes meaningful once Step 4.3 wires up the terminal UI to
+actually call `POST /sessions` — deferring the "stop the controller and
+confirm the site still loads" test to that step instead of running it
+now against a page that can't fail it either way.
+
+**Verification checklist**
+- [x] `web/` scaffolded, builds and runs cleanly (local `next build` and
+      a local production-server smoke test both confirmed before
+      deploying)
+- [x] `NEXT_PUBLIC_API_URL` present as an env var, not hardcoded anywhere
+- [x] Deployed to Vercel as a new project, custom domain connected
+- [x] Site loads at `https://jslnode.anujajay.com` with real content
+- [ ] Independence-from-CT-105 check — deferred to Step 4.3 (not
+      meaningful yet; see note above)
+
+---
+
 *(Further phases appended as we proceed.)*
