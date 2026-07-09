@@ -558,4 +558,98 @@ matching the original Phase 2 baseline) and ttyd correctly fell back to
 
 ---
 
+## Phase 4 — Public Web Interface
+
+**Status: In progress**
+
+### Step 4.1 — Expose the backend publicly
+
+**What we did**
+- Before touching any networking: reviewed `sessions.py`'s token
+  generation (`secrets.token_urlsafe(16)` for `session_id`, 128 bits;
+  `secrets.token_urlsafe(32)` for the actual auth `token`, 256 bits) —
+  confirmed it already used a cryptographically secure source (`secrets`,
+  backed by `os.urandom`) with more than adequate length. This was sound
+  before any public exposure, no fix needed there.
+- While reviewing the surrounding validation logic, found a related gap
+  worth closing before going public: both `DELETE /sessions/{id}` and
+  `WS /ws/{session_id}` validated the token with a plain `session.token !=
+  token` comparison, which is not constant-time in CPython — a timing
+  side-channel that becomes a real (if narrow) concern once this endpoint
+  is reachable from the open internet instead of LAN-only. Fixed both call
+  sites to use `secrets.compare_digest()` instead.
+- Installed `cloudflared` on CT 105, authenticated via `cloudflared tunnel
+  login` (browser auth, completed by the human operator), created the
+  `playground-controller` tunnel, configured `/etc/cloudflared/config.yml`,
+  routed DNS, and installed `cloudflared` as a systemd service.
+- Added CORS middleware to `main.py`, allowing `https://jslnode.anujajay.com`
+  (the eventual frontend origin) and `http://localhost:3000` (local
+  frontend dev against the real backend).
+
+**Drift found and fixed — `curl` not installed on CT 105**
+CT 105 (the controller host itself, not a session sandbox) doesn't have
+`curl` — only `wget`. This isn't the sandbox's deliberate curated-command
+restriction (this is infrastructure, not a visitor session); it simply
+was never installed during Step 3.2's setup. Used `wget` for the
+`.deb` download and initial diagnostics instead of blocking on installing
+`curl` — no functional impact, just noted for anyone doing future manual
+diagnostics on CT 105 directly.
+
+**Drift found and fixed — subdomain nesting broke TLS entirely**
+The original plan specified `api.jslnode.anujajay.com` for the tunnel
+hostname. After DNS and the tunnel connection were both confirmed healthy
+(tunnel showed 4 registered QUIC connections; DNS resolved correctly to
+Cloudflare's anycast IPs from multiple independent resolvers), every
+request to it failed at the TLS handshake stage — confirmed identically
+across three independent TLS stacks (CT 105's GnuTLS via `wget`, a local
+Windows `schannel`-based `curl`, and raw `openssl s_client`), all reporting
+alert 40 (handshake failure). Other hostnames on the same zone
+(`anujajay.com`, `lab.anujajay.com`) worked fine, isolating the problem to
+this one new hostname specifically. Waited and retried across ~20 minutes
+in case this was Universal SSL cert (re-)provisioning taking time for a
+new hostname pattern — it wasn't. Root cause, confirmed once diagnosed
+correctly: Cloudflare's free Universal SSL wildcard cert (`*.anujajay.com`)
+only covers **one** subdomain level. `jslnode.anujajay.com` would be
+covered; `api.jslnode.anujajay.com` — a second level of nesting — is not,
+and would need either an Advanced Certificate Manager entry or a
+`*.jslnode.anujajay.com` wildcard, neither of which existed. Fixed by
+renaming the hostname to `api-jslnode.anujajay.com` (single-level,
+hyphenated instead of nested), which is covered by the existing wildcard
+with no cert changes needed. Confirmed this was the actual root cause, not
+a lingering propagation issue: the corrected hostname worked on the very
+first request, no delay. Updated `/etc/cloudflared/config.yml`, deleted
+the old DNS CNAME (dashboard, since `cloudflared`'s CLI has no `route dns`
+removal command), created the new one, and updated
+`playground-phase4-web-interface-plan.md`'s references (7 occurrences
+across the architecture overview and Steps 4.1/4.2/4.5) to match.
+
+**Verification (Step 9, all real, against the actual public URL — not
+loopback)**
+- `curl https://api-jslnode.anujajay.com/openapi.json` → real `200 OK`
+  with genuine OpenAPI JSON content, not a Cloudflare error page
+- Real `POST /sessions` through the public URL → real `200 OK`,
+  `session_id`/`token`/`connect_info` returned in ~11.4s (consistent with
+  prior clone+start+ttyd-healthcheck timing); `lvs` confirmed the clone as
+  a genuine linked clone (`Origin base-180-disk-0`, not a full copy)
+- WebSocket relay tested through the actual public `wss://` URL from an
+  external client (not CT 105 looping back to itself) — real banner, real
+  shell prompt, `status` command executed and returned genuine curated
+  output
+- Clone auto-destroyed on client disconnect (the Step 3.8 relay-teardown
+  fix still holding under real public-internet conditions); `pct list` and
+  `lvs` both confirmed clean afterward
+
+**Verification checklist (all confirmed)**
+- [x] Token generation confirmed secure before relying on public exposure
+      (was already sound; timing-safe comparison added as a related
+      hardening fix)
+- [x] `curl https://api-jslnode.anujajay.com/openapi.json` returns a real
+      response, not a Cloudflare error page
+- [x] A real `POST /sessions` through the public URL clones, starts, and
+      returns a valid session (linked clone confirmed, not full)
+- [x] WebSocket relay works end-to-end through the public URL specifically
+- [x] Test clone destroyed; `pct list`/`lvs` confirmed clean
+
+---
+
 *(Further phases appended as we proceed.)*

@@ -11,7 +11,7 @@ gate, confirm before moving to the next.
 - [x] Frontend: Next.js, lives in `jaysync-lab-playground/web/`, deployed
       to Vercel at `jslnode.anujajay.com`
 - [x] Backend: existing FastAPI controller on CT 105, exposed publicly via
-      Cloudflare Tunnel at `api.jslnode.anujajay.com` (separate hostname
+      Cloudflare Tunnel at `api-jslnode.anujajay.com` (separate hostname
       from the frontend — two different deployments, not one)
 - [x] Domain: `anujajay.com`, now on Cloudflare DNS (migrated earlier)
 - [x] Email service: Resend
@@ -42,7 +42,7 @@ never share infrastructure:
 
 **Home lab side** (CT 105, only reachable when the host is up):
 - FastAPI controller, exposed via Cloudflare Tunnel at
-  `api.jslnode.anujajay.com`
+  `api-jslnode.anujajay.com`
 - Everything already built in Phase 3 — no changes to the controller's
   core session logic, only additions (CORS, the tunnel itself)
 
@@ -65,11 +65,11 @@ nobody's actively looking at the page when the host comes back.
    tunnel: <tunnel-id>
    credentials-file: /root/.cloudflared/<tunnel-id>.json
    ingress:
-     - hostname: api.jslnode.anujajay.com
+     - hostname: api-jslnode.anujajay.com
        service: http://localhost:8000
      - service: http_status:404
    ```
-4. `cloudflared tunnel route dns playground-controller api.jslnode.anujajay.com`
+4. `cloudflared tunnel route dns playground-controller api-jslnode.anujajay.com`
 5. Install as a systemd service (`cloudflared service install`).
 6. Add CORS middleware to `main.py`, allowing `https://jslnode.anujajay.com`
    (and `http://localhost:3000` for local frontend dev).
@@ -78,7 +78,7 @@ nobody's actively looking at the page when the host comes back.
    mattered less when the controller was LAN-only, it matters now.
 
 **Verify before continuing:**
-- [ ] `curl https://api.jslnode.anujajay.com/openapi.json` returns a real
+- [ ] `curl https://api-jslnode.anujajay.com/openapi.json` returns a real
       response, not a Cloudflare error page
 - [ ] A real `POST /sessions` through the public URL clones, starts,
       returns a valid session (same four checks as every prior test)
@@ -92,7 +92,7 @@ nobody's actively looking at the page when the host comes back.
 1. `web/` directory in `jaysync-lab-playground`, Next.js app.
 2. Deploy to Vercel, connect `jslnode.anujajay.com`.
 3. Environment variable for the backend URL
-   (`NEXT_PUBLIC_API_URL=https://api.jslnode.anujajay.com`), not hardcoded.
+   (`NEXT_PUBLIC_API_URL=https://api-jslnode.anujajay.com`), not hardcoded.
 
 **Verify before continuing:**
 - [ ] Site deploys and loads at `jslnode.anujajay.com`
@@ -178,7 +178,7 @@ check before sending anything.
    endpoint, e.g. `POST /api/host-online`.
 4. That endpoint does **not** trust the ping as proof. It independently
    calls the real public health check
-   (`https://api.jslnode.anujajay.com/health`) through the actual tunnel —
+   (`https://api-jslnode.anujajay.com/health`) through the actual tunnel —
    exactly what a real visitor would hit. If it fails (race condition:
    ping fired before the tunnel/service was fully ready), retry a couple
    of times with a short delay before giving up on this trigger.
