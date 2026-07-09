@@ -987,4 +987,57 @@ outage of the Proxmox host**
 
 ---
 
+### Step 4.6 — Full end-to-end test
+
+**Status: ✅ Complete**
+
+**What we did**
+One continuous pass through the entire system, live against production,
+rather than re-stitching together the separate tests each earlier step
+already ran individually. Confirmed clean baseline first (`pct list`
+empty of session clones, KV queue empty, `last_state: up`), then ran all
+four stages in order without interruption:
+
+1. **Backend up, real session:** loaded `https://jslnode.anujajay.com/`,
+   clicked "Start session" for real, got a real WebSocket-connected
+   terminal, ran `neofetch`, got genuine output. Zero console errors,
+   zero failed requests. Navigated away to disconnect; confirmed the
+   clone was destroyed (`pct list`/`lvs` clean).
+2. **Backend down, real signup:** stopped `playground-controller` for
+   real. Loaded the site fresh — offline state appeared. Submitted a
+   real email through the live form; confirmed both the UI's "Got it"
+   confirmation and the actual KV queue entry (not just the UI's word
+   for it).
+3. **Recovery, real push:** restarted the controller for real. The
+   `ExecStartPost` hook fired, its own real health check passed, found
+   the real queued signup, and sent one real email — confirmed via
+   `journalctl` (`{"healthy":true,"transitioned":true,"emailsSent":1}`)
+   and the KV queue empty immediately after.
+4. **Post-recovery session, same tab, no reload:** the *same* browser
+   tab that had been sitting on the offline state (not a fresh page
+   load) detected recovery ~44s after the restart and returned to the
+   normal "Start session" UI on its own. Started a brand-new real
+   session from that recovered state, ran `status`, got genuine curated
+   output — confirming the system works exactly as it did before the
+   outage, not just that individual pieces independently pass in
+   isolation.
+
+No code changes were needed for this step — every underlying piece had
+already been individually proven in Steps 4.1-4.5; this step's value was
+specifically in proving they all still work correctly *together*, in one
+uninterrupted real cycle.
+
+**Verification checklist (all confirmed)**
+- [x] Stage 1 (backend up): real session, real terminal, real command
+      output, zero console errors, clean teardown on disconnect
+- [x] Stage 2 (backend down): offline state shown, real signup submitted
+      and confirmed in KV
+- [x] Stage 3 (recovery): real push-triggered email sent, confirmed via
+      journal and KV
+- [x] Stage 4 (post-recovery): same tab detected recovery without a
+      reload, and a fresh real session worked identically to Stage 1
+- [x] `pct list`/`lvs` confirmed clean after the full run
+
+---
+
 *(Further phases appended as we proceed.)*
