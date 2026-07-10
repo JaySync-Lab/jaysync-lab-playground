@@ -174,3 +174,21 @@ class ProxmoxClient:
         if status.get("status") != "running":
             return None
         return float(status.get("uptime", 0))
+
+    def node_status(self) -> dict:
+        """Real host-level CPU/RAM from GET /nodes/{node}/status -- requires
+        Sys.Audit on /nodes/{node} specifically (confirmed against
+        Proxmox's own API schema, not assumed from privilege naming; see
+        implementation-log.md). Read-only: Sys.Audit cannot modify or
+        power-manage the node, only view it.
+
+        `cpu` from the API is already a 0-1 fraction of *all* cores
+        combined (not per-core), so this multiplies by 100 once here --
+        the frontend shouldn't need to know that unit convention."""
+        status = self._node.status.get()
+        memory = status.get("memory", {})
+        return {
+            "cpu_percent": round(float(status.get("cpu", 0)) * 100, 1),
+            "memory_used_bytes": int(memory.get("used", 0)),
+            "memory_total_bytes": int(memory.get("total", 0)),
+        }

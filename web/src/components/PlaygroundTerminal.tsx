@@ -12,7 +12,12 @@ import {
   type SessionResponse,
 } from "@/lib/api";
 import { useBackendHealth } from "@/lib/useBackendHealth";
+import { useNodeStatus } from "@/lib/useNodeStatus";
 import { OfflineState } from "@/components/OfflineState";
+
+function formatGiB(bytes: number): string {
+  return (bytes / 1024 ** 3).toFixed(1);
+}
 
 type Phase = "idle" | "starting" | "connected" | "ended" | "error";
 
@@ -46,6 +51,7 @@ export function PlaygroundTerminal() {
   // Step 4.4: paused while a session is connected -- the open WebSocket is
   // already proof the backend is up, no need to poll on top of it.
   const { online, activeSessions, maxSessions } = useBackendHealth(phase === "connected");
+  const nodeStatus = useNodeStatus();
 
   // Mount the xterm.js instance once, independent of session lifecycle,
   // so reconnecting doesn't tear down and rebuild the DOM terminal.
@@ -230,6 +236,13 @@ export function PlaygroundTerminal() {
               {activeSessions !== null && maxSessions !== null && (
                 <span className="ml-3 text-zinc-500">
                   · {activeSessions} of {maxSessions} sessions active
+                </span>
+              )}
+              {nodeStatus !== null && (
+                <span className="ml-3 text-zinc-500">
+                  · host: {nodeStatus.cpuPercent.toFixed(0)}% CPU ·{" "}
+                  {formatGiB(nodeStatus.memoryUsedBytes)}/{formatGiB(nodeStatus.memoryTotalBytes)} GiB
+                  RAM
                 </span>
               )}
             </span>
