@@ -116,7 +116,16 @@ body {
 /* Part 4 item 9: shown only on touch/coarse-pointer devices (no physical
    Ctrl key to rely on) -- a mouse/trackpad-driven desktop never matches
    this, keyboard-and-mouse laptops keep their real Ctrl key and don't need
-   the toolbar cluttering the UI. */
+   the toolbar cluttering the UI.
+
+   Fixed to the viewport bottom (not left in normal document flow) --
+   on a real iPhone the page is tall enough (min-h-screen hero + a
+   near-full-height terminal) that an in-flow toolbar sat far below the
+   fold and needed real scrolling to reach, which read as "doesn't
+   render at all" even though it was technically present in the DOM.
+   `bottom: 0` with no vh-based sizing avoids the iOS Safari large-vs-
+   visible viewport height mismatch that a 100vh-anchored fixed element
+   would hit. padding-bottom reserves the home-indicator safe area. */
 .touch-toolbar {
   display: none;
 }
@@ -124,5 +133,11 @@ body {
 @media (pointer: coarse) {
   .touch-toolbar {
     display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
   }
 }

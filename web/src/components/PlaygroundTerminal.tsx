@@ -316,16 +316,25 @@ export function PlaygroundTerminal() {
       <div
         ref={containerRef}
         className={`w-full rounded-lg border border-accent-dim/40 bg-surface p-3 shadow-[0_0_40px_-12px_rgba(78,227,168,0.25)] transition-[height] duration-300 ${
-          isActive ? "h-[80vh] min-h-[700px]" : "h-[620px]"
+          isActive ? "h-[80dvh] min-h-[700px]" : "h-[620px]"
         } ${showOffline ? "hidden" : ""}`}
       />
+      {/* The toolbar itself is position: fixed (see .touch-toolbar in
+          globals.css) so it's always reachable without scrolling on a real
+          phone -- this spacer just keeps it from visually overlapping the
+          bottom of the page's own content once fixed. Only takes up space
+          on the touch/coarse-pointer viewports the toolbar actually shows
+          on. */}
       {!showOffline && (
-        <MobileCtrlToolbar
-          ctrlArmed={ctrlArmed}
-          onToggleCtrl={() => setCtrlArmed((a) => !a)}
-          onSend={sendRaw}
-          disabled={phase !== "connected"}
-        />
+        <>
+          <div className="hidden [@media(pointer:coarse)]:block h-24 w-full shrink-0" />
+          <MobileCtrlToolbar
+            ctrlArmed={ctrlArmed}
+            onToggleCtrl={() => setCtrlArmed((a) => !a)}
+            onSend={sendRaw}
+            disabled={phase !== "connected"}
+          />
+        </>
       )}
     </div>
   );
