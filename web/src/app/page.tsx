@@ -43,6 +43,14 @@ export default function Home() {
           </a>
           .
         </p>
+        <p className="mt-2">
+          <a
+            href="https://anujajay.com"
+            className="text-zinc-300 underline decoration-accent-dim underline-offset-4 hover:text-accent"
+          >
+            Built by Anuja Jayasinghe ♥
+          </a>
+        </p>
       </footer>
     </div>
   );
