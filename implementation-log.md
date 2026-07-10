@@ -1198,4 +1198,106 @@ live site, the deploy fired automatically.
 
 ---
 
+### CT 180 retemplate — tmux mouse mode fix
+
+Fixed the deferred scrollback bug (root-caused in the round-2 bugfixes
+entry above: `tmux show-options -g mouse` → `off`, wheel-scroll in the
+alt-screen buffer falling back to Up/Down arrow codes, which bash's
+readline reads as history navigation). The fix itself (`set -g mouse on`)
+is one line, but since it lives in the golden template's
+`/home/guest/.tmux.conf` and `pct template`/`pct destroy` are
+irreversible, this required a full retemplate cycle, not an in-place edit
+— same category of operation as the CT 180→183 ttyd-binding fix and the
+183→180 cosmetic move earlier in this log.
+
+**Scope check:** the issue asked to batch in any other known
+golden-template fixes due for a retemplate. Searched this log for other
+deferred template-level issues first — found none besides this one, so
+the cycle stayed single-purpose.
+
+**Procedure**
+1. `vzdump` backup of CT 180 only (not the full guest set used in the
+   Step 3.8 cycle) — scoped down after the original all-guests command
+   was flagged as broader than the actual risk surface for this specific
+   change; confirmed with the user before running.
+2. `pct clone 180 183` (linked clone) to a staging VMID.
+3. Found `/home/guest/.tmux.conf` had no `mouse` setting at all (confirms
+   the `off` default, not an explicit override). Appended `set -g mouse
+   on`. Verified directly rather than trusting the file: started a real
+   `tmux` session as `guest` inside the clone and confirmed
+   `tmux show-options -g mouse` → `on`; also confirmed the append (run as
+   root via `pct exec`) didn't change the file's ownership away from
+   `guest:guest`.
+4. Converted the clone to a template (`pct template 183`), destroyed the
+   old CT 180 (already backed up), cloned 183→180 to move the fix back to
+   the conventional VMID (same two-hop pattern as the earlier 183→180
+   cosmetic move, for the same reason: keeps `config.py`'s
+   `TEMPLATE_VMID=180` and the `VMID_RANGE` exclusion unchanged).
+5. Verified the final CT 180 before converting: confirmed a real linked
+   clone (`lvs` showing `Origin base-183-disk-0`), no stale network config
+   baked in (`/etc/network/interfaces` clean `eth0 manual`, `ip -br addr
+   show` showing only link-local — the exact class of drift bug found
+   during the earlier 183→180 move), `nesting=1` intact (the exact class
+   of regression found during the original 180→183 cycle),
+   `systemctl is-system-running` → `running` with zero failed units, and
+   the mouse setting live in a real `tmux` session again post-clone.
+   Converted to a template only after all of that passed.
+
+**Found during real end-to-end testing — ACL grants wiped by the destroy**
+`POST /sessions` against the new CT 180 failed immediately:
+`403 Forbidden: Permission check failed (/vms/180, VM.Clone)`. Root
+cause, confirmed via `pveum acl list`: destroying the old CT 180 object
+auto-removed its `/vms/180` ACL entries for both the controller user and
+its token — the same mechanical, predictable consequence already
+documented from the original 180→183 cycle (there it was `/vms/180` →
+`/vms/183`; here it's the same path, but the *object* behind VMID 180 is
+new, and Proxmox's ACL cleanup ties to the destroyed object, not just the
+path string persisting). Fixed by re-granting the existing
+`PlaygroundCtrlRole` at `/vms/180` for both the user and the token —
+confirmed with the user before running, consistent with this project's
+standing rule that live Proxmox permission grants always get explicit
+sign-off first.
+
+**Real end-to-end proof, not just config inspection**
+Started a real session through the public API
+(`POST https://api-jslnode.anujajay.com/sessions`), confirmed the clone
+(`playground-session-182`) was a genuine linked clone of the new
+`base-180-disk-0`. Then, via Playwright against the live frontend: typed
+`seq 1 200` inside the guest's auto-attached tmux session (enough output
+to need real scrolling), sent an actual OS-level mouse-wheel event over
+the xterm.js terminal element (`page.mouse.wheel()`), and captured the
+full terminal viewport before and after. The `after` capture showed
+tmux's own native scroll-mode position indicator (`[0/165]`) in the
+pane's corner — this only ever appears when tmux has entered copy/scroll
+mode in response to a real mouse event, which is only reachable with
+`mouse on` — with zero trace of the old bug's signature (a recalled bash
+command appearing at the prompt). Session auto-destroyed cleanly on
+disconnect (`pct list` showed no leftover clone), and the API-level test
+session from the earlier `/vms/180` ACL check was also confirmed cleanly
+destroyed before this test ran.
+
+**Verification checklist (all confirmed)**
+- [x] `tmux show-options -g mouse` → `on`, verified directly inside a
+      real session both on the staging clone and the final CT 180
+- [x] File ownership (`guest:guest`) preserved after the root-run append
+- [x] No stale network config baked into the final CT 180 (checked for
+      the exact drift class found during the earlier 183→180 move)
+- [x] `nesting=1` intact (checked for the exact regression class found
+      during the original 180→183 cycle)
+- [x] `systemctl is-system-running` → `running`, zero failed units
+- [x] `/vms/180` ACL grants re-created for both user and token after
+      being auto-wiped by the destroy; confirmed via `pveum acl list`
+- [x] Real `POST /sessions` through the public API succeeded, clone
+      confirmed linked from the new `base-180-disk-0`
+- [x] Real mouse-wheel scroll over a live session's terminal produced
+      tmux's own scroll-mode indicator, not the old bash-history-recall
+      bug signature
+- [x] Test session and staging CT 183 both destroyed cleanly; `pct list`
+      showed no leftovers of either
+
+No `config.py` changes needed — `TEMPLATE_VMID` stays `180`, matching the
+state established by the earlier post-Phase-3 cleanup.
+
+---
+
 *(Further phases appended as we proceed.)*
