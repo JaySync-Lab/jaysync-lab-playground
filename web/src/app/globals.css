@@ -112,3 +112,17 @@ body {
 .cursor-blink {
   animation: blink 1s step-end infinite;
 }
+
+/* Part 4 item 9: shown only on touch/coarse-pointer devices (no physical
+   Ctrl key to rely on) -- a mouse/trackpad-driven desktop never matches
+   this, keyboard-and-mouse laptops keep their real Ctrl key and don't need
+   the toolbar cluttering the UI. */
+.touch-toolbar {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .touch-toolbar {
+    display: flex;
+  }
+}

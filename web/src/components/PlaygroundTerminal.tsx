@@ -14,6 +14,7 @@ import {
 import { useBackendHealth } from "@/lib/useBackendHealth";
 import { useNodeStatus } from "@/lib/useNodeStatus";
 import { OfflineState } from "@/components/OfflineState";
+import { MobileCtrlToolbar } from "@/components/MobileCtrlToolbar";
 
 function formatGiB(bytes: number): string {
   return (bytes / 1024 ** 3).toFixed(1);
@@ -48,6 +49,29 @@ export function PlaygroundTerminal() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(SESSION_DURATION_SECONDS);
 
+  // Part 4 item 9: sticky Ctrl modifier for the mobile toolbar (no
+  // physical Ctrl key on a touch keyboard). Mirrored into a ref because
+  // the custom key handler is attached once at terminal-mount time and
+  // needs the current value without re-attaching on every toggle.
+  const [ctrlArmed, setCtrlArmed] = useState(false);
+  const ctrlArmedRef = useRef(false);
+  useEffect(() => {
+    ctrlArmedRef.current = ctrlArmed;
+  }, [ctrlArmed]);
+
+
+  // Shared with both real typing (term.onData) and the on-screen toolbar
+  // buttons, so both paths send input to ttyd identically.
+  const sendRaw = useCallback((data: string) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    const payload = new TextEncoder().encode(data);
+    const framed = new Uint8Array(payload.length + 1);
+    framed[0] = TTYD_INPUT.charCodeAt(0);
+    framed.set(payload, 1);
+    ws.send(framed);
+  }, []);
+
   // Step 4.4: paused while a session is connected -- the open WebSocket is
   // already proof the backend is up, no need to poll on top of it.
   const { online, activeSessions, maxSessions } = useBackendHealth(phase === "connected");
@@ -76,6 +100,25 @@ export function PlaygroundTerminal() {
     termRef.current = term;
     fitRef.current = fit;
 
+    // Part 4 item 9: when Ctrl is armed via the mobile toolbar, intercept
+    // the next keydown ourselves instead of letting xterm process it as
+    // plain input. Mobile virtual keyboards have no physical Ctrl to hold,
+    // so this is the only way to produce a real Ctrl+letter control byte
+    // (e.g. Ctrl+X = 0x18) from a touch device. Returning false stops
+    // xterm's default handling (and therefore onData) for this keystroke.
+    term.attachCustomKeyEventHandler((event) => {
+      if (event.type !== "keydown" || !ctrlArmedRef.current) return true;
+      if (event.key.length !== 1) return true; // ignore Shift/Backspace/etc.
+
+      const code = event.key.toUpperCase().charCodeAt(0);
+      if (code < 64 || code > 90) return true; // only A-Z map to a sane control byte
+
+      event.preventDefault();
+      sendRaw(String.fromCharCode(code - 64));
+      setCtrlArmed(false);
+      return false;
+    });
+
     const onResize = () => {
       fitRef.current?.fit();
       if (termRef.current) sendResize(termRef.current, wsRef.current);
@@ -87,6 +130,10 @@ export function PlaygroundTerminal() {
       term.dispose();
       termRef.current = null;
     };
+    // sendRaw is stable (empty deps, only closes over a ref) -- safe to
+    // omit without risking a stale closure, and adding it here would be
+    // fine too but isn't needed for correctness.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const endSession = useCallback((message: string) => {
@@ -94,6 +141,10 @@ export function PlaygroundTerminal() {
     wsRef.current = null;
     setPhase("ended");
     setErrorMessage(message);
+    // Don't leave Ctrl armed across a session boundary -- a stray keypress
+    // at the start of the next session shouldn't silently get eaten as a
+    // control byte.
+    setCtrlArmed(false);
   }, []);
 
   const connect = useCallback((session: SessionResponse) => {
@@ -120,12 +171,7 @@ export function PlaygroundTerminal() {
     };
 
     const onData = term.onData((data) => {
-      if (ws.readyState !== WebSocket.OPEN) return;
-      const payload = new TextEncoder().encode(data);
-      const framed = new Uint8Array(payload.length + 1);
-      framed[0] = TTYD_INPUT.charCodeAt(0);
-      framed.set(payload, 1);
-      ws.send(framed);
+      sendRaw(data);
     });
 
     ws.onclose = () => {
@@ -139,11 +185,12 @@ export function PlaygroundTerminal() {
       onData.dispose();
       endSession("Connection lost.");
     };
-  }, [endSession]);
+  }, [endSession, sendRaw]);
 
   const startSession = useCallback(async () => {
     setPhase("starting");
     setErrorMessage(null);
+    setCtrlArmed(false);
     try {
       const session = await createSession();
       setSecondsLeft(SESSION_DURATION_SECONDS);
@@ -272,6 +319,14 @@ export function PlaygroundTerminal() {
           isActive ? "h-[80vh] min-h-[700px]" : "h-[620px]"
         } ${showOffline ? "hidden" : ""}`}
       />
+      {!showOffline && (
+        <MobileCtrlToolbar
+          ctrlArmed={ctrlArmed}
+          onToggleCtrl={() => setCtrlArmed((a) => !a)}
+          onSend={sendRaw}
+          disabled={phase !== "connected"}
+        />
+      )}
     </div>
   );
 }
