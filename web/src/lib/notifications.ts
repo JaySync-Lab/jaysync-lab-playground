@@ -84,7 +84,7 @@ export interface HealthTransitionResult {
  * the last known status, not as a gate for whether to send.
  */
 export async function checkAndNotifyIfRecovered(): Promise<HealthTransitionResult> {
-  const healthy = await checkHealth();
+  const { healthy } = await checkHealth();
   await setLastState(healthy ? "up" : "down");
 
   if (!healthy) {

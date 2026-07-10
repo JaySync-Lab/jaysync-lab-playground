@@ -48,12 +48,23 @@ export function wsUrl(wsPath: string, token: string): string {
   return `${scheme}//${httpUrl.host}${wsPath}?token=${encodeURIComponent(token)}`;
 }
 
+export interface HealthCheckResult {
+  healthy: boolean;
+  activeSessions: number | null;
+  maxSessions: number | null;
+}
+
 // Step 4.4: dedicated, cheap health check -- no Proxmox calls, no schema
 // generation, just confirms the backend process is up and reachable
 // through the tunnel. A hung request (host genuinely down) is treated
 // the same as a network error via the timeout below, so this never
 // leaves the caller waiting indefinitely.
-export async function checkHealth(timeoutMs = 5000): Promise<boolean> {
+//
+// Also returns active/max session counts (round 2 of frontend fixes) --
+// reuses this same poll for the "X of N sessions active" indicator
+// rather than a second endpoint/poll loop. null when unavailable (health
+// check failed, or an older backend without these fields).
+export async function checkHealth(timeoutMs = 5000): Promise<HealthCheckResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -61,9 +72,15 @@ export async function checkHealth(timeoutMs = 5000): Promise<boolean> {
       cache: "no-store",
       signal: controller.signal,
     });
-    return res.ok;
+    if (!res.ok) return { healthy: false, activeSessions: null, maxSessions: null };
+    const body = await res.json().catch(() => ({}));
+    return {
+      healthy: true,
+      activeSessions: typeof body.active_sessions === "number" ? body.active_sessions : null,
+      maxSessions: typeof body.max_sessions === "number" ? body.max_sessions : null,
+    };
   } catch {
-    return false;
+    return { healthy: false, activeSessions: null, maxSessions: null };
   } finally {
     clearTimeout(timer);
   }

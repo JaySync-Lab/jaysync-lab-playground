@@ -40,7 +40,11 @@ POOL_NAME = "playground-sandbox"
 # next_free_vmid() no longer needs to explicitly exclude it.
 TEMPLATE_VMID = 180
 VMID_RANGE = range(181, 200)  # 181-199 inclusive
-MAX_CONCURRENT_SESSIONS = 3
+# env-overridable (not just a plain constant) so the real cap can be
+# temporarily lowered for a real through-the-UI capacity test without a
+# code redeploy -- e.g. MAX_CONCURRENT_SESSIONS=1 in controller.env makes
+# the "at capacity" state reachable from a single test vantage point.
+MAX_CONCURRENT_SESSIONS = _env_int("MAX_CONCURRENT_SESSIONS", 3)
 MAX_SESSIONS_PER_SOURCE_IP = 1
 REAPER_INTERVAL_SECONDS = 30  # Step 3.6: "runs periodically (e.g. every 30 seconds)"
 
