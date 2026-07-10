@@ -1040,4 +1040,37 @@ uninterrupted real cycle.
 
 ---
 
+### Post-4.6 — Vercel Git auto-deploy connected
+
+`jslnode` was never actually connected to Git-based auto-deploy — every
+production deploy up to this point was a manual `vercel deploy --prod`
+from local working-tree state, which is exactly why the
+`phase4-frontend-polish` merge silently never went live (see the round-2
+bugfixes entry above). Root cause confirmed via `vercel git connect`
+itself refusing to proceed: `jaysync-lab-playground` was private and
+org-owned, which Vercel's Hobby plan doesn't support for Git
+integration — confirmed by comparing against `jaysync-lab-site`'s
+backing project (`jaysync-lab`), also org-owned but public, which does
+have a working Git connection.
+
+Made the repo public (`gh repo edit --visibility public
+--accept-visibility-change-consequences`), confirmed via both an
+authenticated `gh api` call and a fully unauthenticated `curl` request
+to GitHub's public API (`private: false`, `HTTP 200` with no auth
+header — not just trusted the settings page). Reconnected
+(`vercel git connect`), then set the project's Root Directory to `web`
+via the dashboard (the CLI's `project update` command has no
+root-directory flag in this version, and deliberately did not attempt
+to extract the CLI's stored auth token to hit the API directly around
+that gap) — required since the Next.js app lives in a subdirectory of
+this repo, not the repo root, and Git-triggered builds need to know
+that explicitly (CLI-only deploys never needed it, since they always
+ran from inside `web/`).
+
+This entry is itself the test commit proving it: pushed directly to
+`main`, no `vercel deploy` run manually — if you're reading this on the
+live site, the deploy fired automatically.
+
+---
+
 *(Further phases appended as we proceed.)*
