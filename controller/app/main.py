@@ -81,6 +81,18 @@ async def health() -> dict:
     }
 
 
+@app.get("/status")
+async def status(request: Request) -> dict:
+    # Part 4: real host CPU/RAM, backing the frontend's live hardware
+    # stats display. Unlike /health, this is a real Proxmox API call each
+    # time -- not cached, not deliberately cheap -- since the whole point
+    # is showing genuinely current load, not a stale snapshot. Requires
+    # Sys.Audit on /nodes/{node}, confirmed against Proxmox's own API
+    # schema before this endpoint was written (see implementation-log.md).
+    proxmox: ProxmoxClient = request.app.state.proxmox
+    return proxmox.node_status()
+
+
 class SessionResponse(BaseModel):
     session_id: str
     token: str

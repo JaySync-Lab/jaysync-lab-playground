@@ -87,3 +87,42 @@ export async function checkHealth(timeoutMs = 5000): Promise<HealthCheckResult> 
 }
 
 export const SESSION_DURATION_SECONDS = 15 * 60;
+
+export interface NodeStatus {
+  cpuPercent: number;
+  memoryUsedBytes: number;
+  memoryTotalBytes: number;
+}
+
+// Part 4: real host CPU/RAM for the live hardware stats display. Unlike
+// checkHealth(), a failure here just means "don't show stats" -- it must
+// never take down the rest of the page, so this returns null on any
+// error/timeout rather than throwing.
+export async function fetchNodeStatus(timeoutMs = 5000): Promise<NodeStatus | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API_URL}/status`, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!res.ok) return null;
+    const body = await res.json().catch(() => ({}));
+    if (
+      typeof body.cpu_percent !== "number" ||
+      typeof body.memory_used_bytes !== "number" ||
+      typeof body.memory_total_bytes !== "number"
+    ) {
+      return null;
+    }
+    return {
+      cpuPercent: body.cpu_percent,
+      memoryUsedBytes: body.memory_used_bytes,
+      memoryTotalBytes: body.memory_total_bytes,
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
