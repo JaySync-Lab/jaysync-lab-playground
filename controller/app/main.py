@@ -69,7 +69,16 @@ async def health() -> dict:
     # reachable at all -- deliberately cheap (no Proxmox calls, no schema
     # generation like /openapi.json), just confirms the process is up and
     # serving requests through the tunnel.
-    return {"status": "ok"}
+    #
+    # active_sessions/max_sessions (round 2 of frontend fixes): reuses this
+    # same poll for the "X of N sessions active" indicator rather than
+    # adding a second endpoint/poll loop -- count_active() is just an
+    # in-memory dict length, no Proxmox call, so this stays cheap.
+    return {
+        "status": "ok",
+        "active_sessions": await sessions.count_active(),
+        "max_sessions": config.MAX_CONCURRENT_SESSIONS,
+    }
 
 
 class SessionResponse(BaseModel):

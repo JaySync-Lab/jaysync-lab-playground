@@ -22,6 +22,16 @@ type Phase = "idle" | "starting" | "connected" | "ended" | "error";
 // command prefix. '0' = INPUT (client->server) / OUTPUT (server->client).
 const TTYD_INPUT = "0";
 const TTYD_OUTPUT = 0x30; // '0' as a byte, for comparing the first byte of a Blob/ArrayBuffer
+const TTYD_RESIZE = "1";
+
+function sendResize(term: Terminal, ws: WebSocket | null) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  const payload = new TextEncoder().encode(JSON.stringify({ columns: term.cols, rows: term.rows }));
+  const framed = new Uint8Array(payload.length + 1);
+  framed[0] = TTYD_RESIZE.charCodeAt(0);
+  framed.set(payload, 1);
+  ws.send(framed);
+}
 
 export function PlaygroundTerminal() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -35,7 +45,7 @@ export function PlaygroundTerminal() {
 
   // Step 4.4: paused while a session is connected -- the open WebSocket is
   // already proof the backend is up, no need to poll on top of it.
-  const online = useBackendHealth(phase === "connected");
+  const { online, activeSessions, maxSessions } = useBackendHealth(phase === "connected");
 
   // Mount the xterm.js instance once, independent of session lifecycle,
   // so reconnecting doesn't tear down and rebuild the DOM terminal.
@@ -60,7 +70,10 @@ export function PlaygroundTerminal() {
     termRef.current = term;
     fitRef.current = fit;
 
-    const onResize = () => fitRef.current?.fit();
+    const onResize = () => {
+      fitRef.current?.fit();
+      if (termRef.current) sendResize(termRef.current, wsRef.current);
+    };
     window.addEventListener("resize", onResize);
 
     return () => {
@@ -159,8 +172,23 @@ export function PlaygroundTerminal() {
     };
   }, []);
 
+  // The terminal container's own size changes (CSS class swap on phase
+  // transition, see the active-session sizing below) don't fire a window
+  // resize event, so FitAddon never notices on its own -- re-fit once the
+  // CSS transition has had a moment to settle, then tell the remote ttyd
+  // side about the new size (it doesn't know the container got bigger
+  // otherwise).
+  useEffect(() => {
+    const id = setTimeout(() => {
+      fitRef.current?.fit();
+      if (termRef.current) sendResize(termRef.current, wsRef.current);
+    }, 320);
+    return () => clearTimeout(id);
+  }, [phase]);
+
   const minutes = Math.floor(secondsLeft / 60);
   const seconds = secondsLeft % 60;
+  const isFinalMinute = phase === "connected" && secondsLeft <= 60;
 
   // Only takes over the UI when no session is in flight -- if a session is
   // already starting/connected, an existing WebSocket failure handles that
@@ -169,16 +197,27 @@ export function PlaygroundTerminal() {
   const showOffline =
     online === false && (phase === "idle" || phase === "ended" || phase === "error");
 
+  const isActive = phase === "connected";
+
   return (
-    <div className="flex w-full max-w-5xl flex-col items-center gap-3">
+    <div
+      className={`flex w-full flex-col items-center gap-3 transition-[max-width] duration-300 ${
+        isActive ? "max-w-7xl" : "max-w-5xl"
+      }`}
+    >
       {showOffline ? (
         <OfflineState />
       ) : (
         <>
+          {isFinalMinute && (
+            <div className="w-full animate-pulse rounded-md border border-danger/50 bg-danger/10 px-4 py-2 text-center font-mono text-sm font-semibold text-danger">
+              ⚠ Session ending in {seconds}s — save anything you need now.
+            </div>
+          )}
           <div className="flex w-full items-center justify-between text-sm font-mono text-zinc-400">
             <span>
               {phase === "connected" && (
-                <span className="text-accent">
+                <span className={isFinalMinute ? "font-bold text-danger" : "text-accent"}>
                   ● session active — {minutes}:{seconds.toString().padStart(2, "0")} remaining
                 </span>
               )}
@@ -188,6 +227,11 @@ export function PlaygroundTerminal() {
                 <span className="text-danger">{errorMessage ?? "session ended"}</span>
               )}
               {phase === "error" && <span className="text-danger">{errorMessage}</span>}
+              {activeSessions !== null && maxSessions !== null && (
+                <span className="ml-3 text-zinc-500">
+                  · {activeSessions} of {maxSessions} sessions active
+                </span>
+              )}
             </span>
             {(phase === "idle" || phase === "ended" || phase === "error") && (
               <button
@@ -211,9 +255,9 @@ export function PlaygroundTerminal() {
           to; hidden rather than removed. */}
       <div
         ref={containerRef}
-        className={`h-[620px] w-full rounded-lg border border-accent-dim/40 bg-surface p-3 shadow-[0_0_40px_-12px_rgba(78,227,168,0.25)] ${
-          showOffline ? "hidden" : ""
-        }`}
+        className={`w-full rounded-lg border border-accent-dim/40 bg-surface p-3 shadow-[0_0_40px_-12px_rgba(78,227,168,0.25)] transition-[height] duration-300 ${
+          isActive ? "h-[80vh] min-h-[700px]" : "h-[620px]"
+        } ${showOffline ? "hidden" : ""}`}
       />
     </div>
   );

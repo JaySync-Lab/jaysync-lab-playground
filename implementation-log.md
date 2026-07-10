@@ -1040,6 +1040,131 @@ uninterrupted real cycle.
 
 ---
 
+### Post-4.6 — Real user-testing fixes, round 2
+
+**Status: Parts 1-3 complete; Part 4 (mobile toolbar, live hardware
+stats) pending**
+
+Real user-testing after Step 4.6's automated pass surfaced a substantial
+list of issues. Worked through them investigate-first, verify-as-you-go,
+per explicit instruction not to batch blind fixes.
+
+**Investigation — favicon and splash "not showing" (both, same root
+cause)**
+Not a code bug at all. `phase4-frontend-polish` had been merged into
+`main` on GitHub, but was never actually promoted to the Vercel
+*production* deployment — every `vercel deploy --prod` run during Step
+4.5's testing was from local working-tree state at the time, and none
+of them happened after that merge. Confirmed directly, not assumed: the
+live page's HTML had zero `materialize` animation classes and a
+plain `border-border` terminal container (the pre-polish markup), and
+`curl` showed `/favicon.ico` → `200` (stale file still being served)
+while `/icon.svg` → `404` (never existed in that build at all, despite
+being in git for a while). Fixed by simply deploying current `main` to
+production — confirmed after: `icon.svg` → `200`, materialize classes
+present in the served HTML.
+
+**Bug 3 (scrollback) — investigated, root cause found, fix deferred by
+explicit decision**
+The reported symptom ("scrolling cycles through command history") has
+nothing to do with our frontend code — `PlaygroundTerminal.tsx` has no
+wheel-event handling at all, and xterm.js's default `scrollback` (1000
+lines) was never overridden. Root cause, confirmed directly on a live
+session: `tmux show-options -g mouse` → `mouse off`, and tmux's client
+session runs in the terminal's alternate screen buffer (confirmed via
+the `\x1b[?1049h` sequence seen in earlier session output). This is
+standard XTerm-family behavior: in the alt-screen buffer, wheel-scroll
+is conventionally translated into Up/Down arrow-key escape codes (so
+alt-screen apps like `vim`/`less` can handle their own scrolling); since
+tmux's own mouse mode is off, those keys pass straight through to the
+shell, and bash's readline interprets them as history navigation. The
+real fix (`set -g mouse on` in the golden template's `.tmux.conf`) is
+baked into CT 180 (an irreversible Proxmox template), so it needs
+another full retemplate cycle, not a code change. Deferred by explicit
+decision — bundled into a future retemplate cycle rather than done
+standalone.
+
+**Bug 4 — terminal size in the active-session layout**
+Widened (`max-w-5xl` → `max-w-7xl`) and enlarged
+(`h-[620px]` → `h-[80vh] min-h-[700px]`) specifically when
+`phase === "connected"`, not the pre-session view. Also fixed two real
+gaps found while implementing this: (1) neither the phase-driven resize
+nor the pre-existing window-resize handler ever told ttyd about the new
+terminal dimensions — `FitAddon.fit()` only resizes the local xterm.js
+buffer, so the remote shell kept thinking it had the old size; added
+`ttyd`'s `RESIZE_TERMINAL` command (`'1'`-prefixed frame) to both. (2)
+First attempt used a plain `h-[80vh]`, which — verified directly with
+Playwright, not assumed — is actually *smaller* than the pre-session
+`620px` on a typical 720px-tall viewport (80vh = 576px). Added
+`min-h-[700px]` as a floor; re-verified the active terminal genuinely
+grows (616px → 700px) rather than shrinking.
+
+**Item 5 — live session counter**
+Extended the existing `GET /health` endpoint (already polled every 15s
+for offline detection) with `active_sessions`/`max_sessions`, rather
+than adding a second endpoint/poll loop — `count_active()` is just an
+in-memory dict length, no extra Proxmox cost. Frontend shows "X of N
+sessions active" next to the session status line whenever the data is
+available.
+
+**Item 6 — countdown/warning before timeout**
+The countdown itself already existed (`MM:SS remaining` in the status
+line); what was missing was a *clear* warning, not a silent disconnect.
+Added a pulsing, dedicated banner ("⚠ Session ending in Ns — save
+anything you need now") plus a color shift on the existing countdown
+text, both gated on `secondsLeft <= 60`. Verified for real rather than
+waiting 14 minutes on the actual 15-minute duration: temporarily set
+the client-side `SESSION_DURATION_SECONDS` to 65s, tested locally
+(never deployed the shortened duration to production), confirmed the
+banner appears, persists, and the countdown color genuinely changes;
+reverted before any production deploy.
+
+**Item 8 — concurrency cap tested through the real UI**
+The plan asked for 3 real sessions via the UI, but this genuinely can't
+be reproduced from a single machine: Cloudflare Tunnel correctly
+distinguishes different real client IPs (confirmed in earlier journal
+entries showing distinct source IPs for different real devices), but
+multiple browser tabs from *this one machine* all share the same public
+IP, and `MAX_SESSIONS_PER_SOURCE_IP=1` would block the 2nd attempt
+before ever reaching a true capacity test. Rather than fake it, exercised
+the exact same code path a different way: made `MAX_CONCURRENT_SESSIONS`
+env-overridable (previously a hardcoded constant), temporarily set it to
+`1` on the real deployed backend, filled the cap with one real UI
+session, then attempted a second real UI session from the same machine —
+since the capacity check runs before the per-IP check in `main.py`, this
+hits the identical `503` branch a genuine 4th-of-3 attempt would.
+Confirmed via Playwright: clean "Playground is at capacity — try again
+shortly." state, not hung, not broken. Restored `MAX_CONCURRENT_SESSIONS`
+to the default (3) immediately after.
+
+**Item 7 — credits section**
+Drafted, not yet applied — presented to the user for approval before
+committing, per explicit instruction.
+
+**Verification checklist**
+- [x] Favicon and splash confirmed fixed on live production (not
+      assumed from the code diff alone)
+- [x] Scrollback bug root-caused with direct evidence
+      (`tmux show-options`, raw escape-sequence inspection); fix
+      deferred by explicit decision, not forgotten
+- [x] Active-session terminal size verified bigger than pre-session on a
+      real viewport (Playwright bounding-box measurement, not assumed)
+- [x] ttyd resize notification added and covers both the phase-driven
+      and window-resize cases
+- [x] Live session counter confirmed showing real counts from the
+      deployed backend
+- [x] Final-minute warning confirmed appearing and persisting (real
+      browser test, temporarily shortened duration, never deployed to
+      production)
+- [x] Concurrency-cap "at capacity" UI state confirmed via the real
+      deployed backend and a real browser, cap restored afterward
+- [ ] Credits text — awaiting approval before finalizing
+- [ ] Part 4 (mobile Ctrl toolbar, live hardware stats) — not started;
+      Part 4 point 2 (hardware stats) requires an explicit `pveum`
+      command review before touching live Proxmox permissions
+
+---
+
 ### Post-4.6 — Vercel Git auto-deploy connected
 
 `jslnode` was never actually connected to Git-based auto-deploy — every
