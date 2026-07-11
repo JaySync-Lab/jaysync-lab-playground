@@ -1,5 +1,6 @@
 import { Redis } from "@upstash/redis";
 import { checkHealth } from "@/lib/api";
+import { sendEmail } from "@/lib/email";
 
 const redis = Redis.fromEnv();
 
@@ -10,7 +11,6 @@ const redis = Redis.fromEnv();
 const QUEUE_KEY = "outage:queue";
 const LAST_STATE_KEY = "backend:last_state";
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_ADDRESS = "JaySync-Lab Playground <ops@jslnode.anujajay.com>";
 
 export async function addToQueue(email: string): Promise<void> {
@@ -30,30 +30,20 @@ async function setLastState(state: "up" | "down"): Promise<void> {
 }
 
 async function sendRecoveryEmail(to: string): Promise<void> {
-  if (!RESEND_API_KEY) throw new Error("RESEND_API_KEY is not set");
+  const text =
+    "The JaySync-Lab playground is back online -- give it a try:\n\n" +
+    "https://jslnode.anujajay.com\n\n" +
+    "You're getting this because you signed up while it was down. " +
+    "This list is cleared after every recovery, so you won't hear from " +
+    "this address again unless you sign up during a future outage.";
 
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: FROM_ADDRESS,
-      to: [to],
-      subject: "The playground is back",
-      text:
-        "The JaySync-Lab playground is back online -- give it a try:\n\n" +
-        "https://jslnode.anujajay.com\n\n" +
-        "You're getting this because you signed up while it was down. " +
-        "This list is cleared after every recovery, so you won't hear from " +
-        "this address again unless you sign up during a future outage.",
-    }),
+  await sendEmail({
+    to,
+    from: FROM_ADDRESS,
+    subject: "The playground is back",
+    text,
+    html: text.replace(/\n/g, "<br/>"),
   });
-
-  if (!res.ok) {
-    throw new Error(`Resend send to ${to} failed: ${res.status} ${await res.text()}`);
-  }
 }
 
 export interface HealthTransitionResult {
