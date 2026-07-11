@@ -25,6 +25,13 @@ export async function sendEmail({ to, from, subject, html, text }: SendEmailInpu
   }
 }
 
+// Absolute URL -- email clients fetch images over the network, never
+// relative to the email's own (nonexistent) location. This is a real
+// static asset in public/ (NOT the Next.js app/icon.svg favicon route,
+// which isn't meant for hotlinking and isn't a raster image email
+// clients can reliably render) so the URL is stable across deploys.
+const LOGO_URL = "https://jslnode.anujajay.com/email-logo.png";
+
 // Shared visual shell so every email from this project looks like one
 // system -- dark terminal aesthetic matching the site, inline styles only
 // (email clients don't load external/embedded stylesheets reliably).
@@ -37,7 +44,15 @@ export function renderEmailShell(opts: { eyebrow: string; heading: string; bodyH
         <td align="center">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#0c0f11;border:1px solid #1c2228;border-radius:10px;overflow:hidden;">
             <tr>
-              <td style="padding:28px 28px 20px;">
+              <td style="padding:24px 28px 0;">
+                <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                  <td style="padding-right:10px;"><img src="${LOGO_URL}" width="28" height="28" alt="JaySync-Lab" style="display:block;border-radius:6px;" /></td>
+                  <td style="color:#e4e7eb;font-size:13px;font-weight:600;letter-spacing:0.02em;">JaySync-Lab Playground</td>
+                </tr></table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 28px 20px;">
                 <p style="margin:0 0 6px;color:#4ee3a8;font-size:11px;letter-spacing:0.25em;text-transform:uppercase;">${opts.eyebrow}</p>
                 <h1 style="margin:0;color:#e4e7eb;font-size:20px;font-weight:600;">${opts.heading}</h1>
               </td>
