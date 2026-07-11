@@ -267,7 +267,7 @@ export function PlaygroundTerminal() {
               ⚠ Session ending in {seconds}s — save anything you need now.
             </div>
           )}
-          <div className="flex w-full items-center justify-between text-sm font-mono text-zinc-400">
+          <div className="flex w-full flex-col gap-2 text-sm font-mono text-zinc-400 sm:flex-row sm:items-center sm:justify-between">
             <span>
               {phase === "connected" && (
                 <span className={isFinalMinute ? "font-bold text-danger" : "text-accent"}>
@@ -296,7 +296,7 @@ export function PlaygroundTerminal() {
             {(phase === "idle" || phase === "ended" || phase === "error") && (
               <button
                 onClick={startSession}
-                className="rounded-md border border-accent-dim bg-accent/10 px-4 py-1.5 font-mono text-accent transition-colors hover:bg-accent/20"
+                className="w-full rounded-md border border-accent-dim bg-accent/10 px-4 py-1.5 font-mono text-accent transition-colors hover:bg-accent/20 sm:w-auto"
               >
                 {phase === "idle" ? "Start session" : "Start new session"}
               </button>
