@@ -7,7 +7,7 @@ export const metadata = {
 
 export default function FeedbackPage() {
   return (
-    <div className="scanline-overlay grid-bg relative flex min-h-screen flex-col items-center bg-background px-6 py-24 text-center text-foreground">
+    <div className="scanline-overlay grid-bg relative flex min-h-screen flex-col items-center overflow-hidden bg-background px-6 py-24 text-center text-foreground">
       <p className="font-mono text-xs tracking-[0.3em] text-accent">
         JAYSYNC-LAB // PLAYGROUND
       </p>
