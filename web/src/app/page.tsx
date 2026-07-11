@@ -43,6 +43,13 @@ export default function Home() {
           >
             GitHub
           </a>
+          . Found a bug or have an idea?{" "}
+          <a
+            href="/feedback"
+            className="text-zinc-300 underline decoration-accent-dim underline-offset-4 hover:text-accent"
+          >
+            Send feedback
+          </a>
           .
         </p>
         <p className="mt-2">
