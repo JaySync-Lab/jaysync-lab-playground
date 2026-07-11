@@ -141,3 +141,15 @@ body {
     padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
   }
 }
+
+/* "Use a computer" banner: touch devices only, same gating as the
+   toolbar above -- a mouse/keyboard desktop never needs this notice. */
+.touch-only-banner {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .touch-only-banner {
+    display: block;
+  }
+}

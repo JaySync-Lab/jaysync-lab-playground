@@ -1,8 +1,10 @@
 import { PlaygroundTerminal } from "@/components/PlaygroundTerminal";
+import { MobileDesktopBanner } from "@/components/MobileDesktopBanner";
 
 export default function Home() {
   return (
     <div className="relative flex min-h-screen flex-col items-center bg-background text-foreground">
+      <MobileDesktopBanner />
       <section className="scanline-overlay grid-bg relative flex w-full flex-col items-center justify-center overflow-hidden px-6 pb-16 pt-24 text-center">
         <p className="materialize font-mono text-xs tracking-[0.3em] text-accent">
           JAYSYNC-LAB // PLAYGROUND
