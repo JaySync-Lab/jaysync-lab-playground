@@ -4,6 +4,8 @@ import {
   checkRateLimit,
   createFeedbackIssue,
   storeFeedbackEmail,
+  notifyOwnerOfFeedback,
+  sendThankYouEmail,
   type FeedbackType,
 } from "@/lib/feedback";
 
@@ -84,6 +86,24 @@ export async function POST(req: NextRequest) {
       await storeFeedbackEmail(issueNumber, cleanEmail);
     } catch (err) {
       console.error(`Failed to store email for issue #${issueNumber}:`, err);
+    }
+  }
+
+  // Both emails are best-effort notifications layered on top of the
+  // already-created issue (the real source of truth) -- a Resend hiccup
+  // must not turn an otherwise-successful submission into an error for
+  // the visitor.
+  try {
+    await notifyOwnerOfFeedback(type as FeedbackType, message, cleanEmail, issueNumber);
+  } catch (err) {
+    console.error(`Failed to send owner notification for issue #${issueNumber}:`, err);
+  }
+
+  if (cleanEmail) {
+    try {
+      await sendThankYouEmail(type as FeedbackType, message, cleanEmail);
+    } catch (err) {
+      console.error(`Failed to send thank-you email for issue #${issueNumber}:`, err);
     }
   }
 
