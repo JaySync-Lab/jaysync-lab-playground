@@ -1300,4 +1300,178 @@ state established by the earlier post-Phase-3 cleanup.
 
 ---
 
+### Mobile compatibility pass (both public sites)
+
+Real Playwright audits (iPhone SE, iPhone 13, small Android viewports)
+across every page/state on both `jslnode.anujajay.com` and
+`lab.anujajay.com` — checking both for actual `document.documentElement`
+horizontal overflow and for visual cramping that an overflow check alone
+wouldn't catch.
+
+**Found and fixed here (playground):**
+- The status row (session state + session count + live host stats) and
+  the "Start session" button were a fixed side-by-side flex row. On the
+  narrowest real phones (~360px) the status text wrapped to 4 lines
+  while the button also wrapped to 2, cramming both into the same row.
+  Switched to `flex-col` below `sm`, `flex-row` at `sm+` — status text
+  gets the full line width on mobile (wraps to a clean 3 lines), full
+  -width button sits below as a comfortable tap target. Desktop
+  unchanged, confirmed via a 1280px screenshot before/after.
+- Added a dismissible "for the best experience, use a computer" banner —
+  touch-only (`pointer: coarse`, same gating as the mobile Ctrl
+  toolbar), dismiss persisted in `localStorage` so it stays dismissed
+  across future visits. Verified all five states via Playwright: shows
+  on mobile, dismisses, stays dismissed after reload, reappears for a
+  fresh visitor, never shows on desktop.
+
+**Found on jaysync-lab-site (companion fix, that repo's own log):** the
+VMID band diagram on `/architecture` is intentionally wider than mobile
+(long entries deliberately don't wrap) and already scrollable within its
+own card — but had no visual cue telling a touch user that. Fixed with a
+fade + "swipe to see full diagram" hint, touch-only.
+
+**Verification checklist**
+- [x] Zero document-level horizontal overflow across every page/viewport
+      tested, before and after
+- [x] Status row confirmed clean 3-line wrap + full-width button on a
+      360px viewport; desktop confirmed pixel-identical to before
+- [x] Banner's five states all confirmed via Playwright, not assumed
+
+---
+
+### README overhaul, all four org repos
+
+Accuracy audit before writing anything: `jaysync-lab-site` had **no
+README at all**; this repo's README still said "Phase 3 (session
+controller) next" when Phase 3 had been done for a while and Phase 4
+was live; the `.github` org profile said Phase 4 was "in progress" when
+it had shipped. All four rewritten — cross-linked to each other, a
+mermaid architecture diagram per repo, real service/tech-stack tables,
+CI-status badges only where a real workflow exists (none added here,
+since this repo has no CI), current status stated plainly. Reviewed as
+a rendered visual preview (tabbed HTML artifact mimicking GitHub's own
+markdown rendering, badges and diagrams included) before anything was
+written to a real file, per explicit request.
+
+---
+
+### Feedback system: form, GitHub issues, honeypot, rate limit, emails
+
+A public feedback form at `/feedback` — type (bug / idea / complaint /
+want to contribute), required message, optional email — that turns a
+real submission into a real, labeled GitHub issue on this repo.
+
+**Abuse protection**
+- Honeypot field, CSS-hidden off-screen (not `display:none` — some bots
+  skip that), `tabIndex=-1`, `aria-hidden`. A filled honeypot returns
+  the *exact* same success response as a real submission (same status,
+  same shape) — nothing created, no rate-limit slot consumed, and a bot
+  gets no signal it was silently dropped.
+- Per-IP rate limit via the existing Upstash Redis connection: fixed
+  1-hour window, 3 submissions max. `INCR` is atomic; `EXPIRE` only
+  (re-)arms on the window's first hit so a burst can't push the window
+  back indefinitely.
+
+**Privacy boundary — the actual point of this feature**
+The GitHub issue body contains *only* the type and message; the
+submitted email never reaches GitHub. If provided, it's stored
+separately in Vercel KV keyed by the created issue number
+(`feedback:email:{n}`), reachable only by that exact key — never on the
+public issue, never enumerable.
+
+**New credential**: `GITHUB_FEEDBACK_TOKEN`, a fine-grained PAT scoped
+to `Issues: Read and write` on this repo only — same least-privilege
+pattern as every other credential in this project. Exact scope was
+shown and explicitly confirmed before creation, per standing project
+practice for anything touching live credentials. Verified against the
+real GitHub API (`x-accepted-github-permissions: issues=read` on a real
+call) before first use.
+
+**Owner + submitter emails**, added right after, via the existing
+Resend integration (same proven `ops@jslnode.anujajay.com` sender as
+the offline-recovery emails):
+- Owner notification → `FEEDBACK_NOTIFY_EMAIL`: type, full message, a
+  direct issue link, and a mailto reply link if an email was left. Sent
+  on every submission.
+- Thank-you email → only if the submitter left one. Quotes their own
+  message back (genuinely specific to their submission, not a blanket
+  template) with a closing line that varies by type.
+- Both wrapped in `try/catch` in the route — a Resend hiccup can't turn
+  an otherwise-successful submission (issue already created) into an
+  error for the visitor.
+- Extracted the Resend fetch call into a shared `lib/email.ts`
+  (`sendEmail` + `renderEmailShell`) rather than duplicating it a third
+  time — `notifications.ts`'s existing recovery email now goes through
+  the same path, behavior unchanged, so every email from this project
+  shares one visual identity.
+- Added a logo + wordmark header to that shared shell, reusing the
+  site's existing `icon.svg` (rendered to a 96×96 PNG via a headless
+  browser, displayed at 28×28) rather than a new asset. Addressed a
+  real question about *why* Gmail was showing a generic letter avatar:
+  that's Gmail's own inbox-list avatar, controlled via BIMI (needs
+  DMARC at enforcement plus a paid Verified Mark Certificate) or a real
+  Google Workspace mailbox — genuinely disproportionate here. The
+  in-body logo header is what's actually achievable and is what
+  "branded transactional email" means in practice for a project this
+  size.
+
+**Real end-to-end tests, each against the actual live/deployed system,
+not previews** (Vercel preview deployments sit behind SSO/auth
+protection that blocks automated testing — by explicit agreement,
+verification for this whole arc happened post-merge against production
+rather than working around that protection):
+- One real submission per type through the live form — confirmed
+  correct per-type labeling (`bug`→`bug`, `idea`→`feature-request`,
+  `complaint`→`feedback`), a 4th submission in the same hour correctly
+  rate-limited (429, no issue created), honeypot submission correctly
+  created nothing
+- Issue body confirmed to contain zero trace of the submitted email
+  (grepped the raw API response); `redis.get("feedback:email:{n}")`
+  confirmed returning the exact submitted email for issues that had
+  one, and `null` for issues that didn't
+- Logo asset confirmed live (200, correct `image/png` content-type,
+  byte-identical to the local render) before relying on it in a real
+  send
+- All test issues closed afterward with an explanatory comment, never
+  left dangling as noise on the tracker
+
+---
+
+### Fixed a live scrollbar-flicker bug (found during manual testing)
+
+Reported as "scrollbar keeps appearing and going." Root-caused via
+direct measurement rather than guessed: sampled
+`document.documentElement.scrollHeight` every 150ms against the live
+site and found it growing linearly (792px → 1558px) in lockstep with
+`.scanline-overlay::after`'s 6-second `translateY(-100% → 100%)`
+animation, then snapping back the instant the loop reset. Without
+`overflow-hidden` on the container, Chromium was including the
+pseudo-element's post-transform position in the page's own scrollable
+-overflow calculation. The homepage's hero section already had
+`overflow-hidden` (confirmed via grep — the only one of three
+`scanline-overlay` usages that did, and correspondingly the only one
+not exhibiting the bug); `/feedback` (new, this arc) and `/not-found`
+(pre-existing, unrelated) were both missing it. Fixed both, reproduced
+live on production *before* fixing, then reverified all three pages
+held a perfectly flat `scrollHeight` over a 6-second sample window,
+both locally and again on production after deploy.
+
+Separately: a rate-limit report during this same testing session turned
+out to be real quota exhaustion from this project's own earlier
+end-to-end test traffic, sharing an IP with the person testing. Not a
+bug — confirmed via direct KV inspection, then cleared the specific
+polluted key rather than making the tester wait out the window.
+
+---
+
+### Small fix: back-to-home link on the feedback page
+
+No way back to the playground from `/feedback` other than the browser's
+back button. Small arrow-icon "Back" link, top-left, matching the
+site's existing minimal terminal styling — no new icon dependency,
+inline SVG. Verified via Playwright: renders, points to `/`, and
+actually navigates there on click.
+
+---
+
 *(Further phases appended as we proceed.)*
