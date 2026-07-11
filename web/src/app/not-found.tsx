@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function NotFound() {
   return (
-    <div className="scanline-overlay grid-bg relative flex min-h-screen flex-col items-center justify-center bg-background px-6 text-center text-foreground">
+    <div className="scanline-overlay grid-bg relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-background px-6 text-center text-foreground">
       <p className="materialize font-mono text-xs tracking-[0.3em] text-accent">
         JAYSYNC-LAB // PLAYGROUND
       </p>
