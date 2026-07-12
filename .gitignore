@@ -4,3 +4,8 @@ __pycache__/
 venv/
 controller/.env
 controller/**/controller.env
+
+# graphify - keep graph.json/GRAPH_REPORT.md/graph.html tracked (the
+# point is a future session can use this without rebuilding); only the
+# large machine-local raw-extraction cache is ignored.
+graphify-out/cache/
