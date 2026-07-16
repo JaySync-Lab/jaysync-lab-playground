@@ -65,7 +65,7 @@ export async function createFeedbackIssue(type: FeedbackType, message: string): 
     },
     body: JSON.stringify({
       title: buildTitle(type, message),
-      body: `**Type:** ${TYPE_TITLES[type]}\n\n**Message:**\n\n${message.trim()}\n\n---\n*Submitted via the feedback form on jslnode.anujajay.com.*`,
+      body: `**Type:** ${TYPE_TITLES[type]}\n\n**Message:**\n\n${message.trim()}\n\n---\n*Submitted via the feedback form on jslnode.jaysynclab.com.*`,
       labels: [TYPE_LABELS[type]],
     }),
   });
@@ -88,7 +88,7 @@ export async function getFeedbackEmail(issueNumber: number): Promise<string | nu
   return redis.get(`feedback:email:${issueNumber}`);
 }
 
-const FROM_ADDRESS = "JaySync-Lab Playground <ops@jslnode.anujajay.com>";
+const FROM_ADDRESS = "JaySync-Lab Playground <ops@jaysynclab.com>";
 const NOTIFY_EMAIL = process.env.FEEDBACK_NOTIFY_EMAIL;
 const ISSUE_URL_BASE = `https://github.com/${REPO_OWNER}/${REPO_NAME}/issues`;
 

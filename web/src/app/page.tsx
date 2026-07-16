@@ -31,7 +31,7 @@ export default function Home() {
         <p>
           Built on a homelab running{" "}
           <a
-            href="https://lab.anujajay.com"
+            href="https://jaysynclab.com"
             className="text-zinc-300 underline decoration-accent-dim underline-offset-4 hover:text-accent"
           >
             JaySync-Lab

@@ -30,7 +30,7 @@ export async function sendEmail({ to, from, subject, html, text }: SendEmailInpu
 // static asset in public/ (NOT the Next.js app/icon.svg favicon route,
 // which isn't meant for hotlinking and isn't a raster image email
 // clients can reliably render) so the URL is stable across deploys.
-const LOGO_URL = "https://jslnode.anujajay.com/email-logo.png";
+const LOGO_URL = "https://jslnode.jaysynclab.com/email-logo.png";
 
 // Shared visual shell so every email from this project looks like one
 // system -- dark terminal aesthetic matching the site, inline styles only
@@ -64,7 +64,7 @@ export function renderEmailShell(opts: { eyebrow: string; heading: string; bodyH
             </tr>
             <tr>
               <td style="padding:16px 28px;border-top:1px solid #1c2228;color:#52525b;font-size:11px;">
-                JaySync-Lab Playground &middot; <a href="https://jslnode.anujajay.com" style="color:#52525b;">jslnode.anujajay.com</a>
+                JaySync-Lab Playground &middot; <a href="https://jslnode.jaysynclab.com" style="color:#52525b;">jslnode.jaysynclab.com</a>
               </td>
             </tr>
           </table>
