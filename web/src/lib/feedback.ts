@@ -88,7 +88,7 @@ export async function getFeedbackEmail(issueNumber: number): Promise<string | nu
   return redis.get(`feedback:email:${issueNumber}`);
 }
 
-const FROM_ADDRESS = "JaySync-Lab Playground <ops@jslnode.anujajay.com>";
+const FROM_ADDRESS = "JaySync-Lab Playground <ops@jaysynclab.com>";
 const NOTIFY_EMAIL = process.env.FEEDBACK_NOTIFY_EMAIL;
 const ISSUE_URL_BASE = `https://github.com/${REPO_OWNER}/${REPO_NAME}/issues`;
 

@@ -11,7 +11,7 @@ const redis = Redis.fromEnv();
 const QUEUE_KEY = "outage:queue";
 const LAST_STATE_KEY = "backend:last_state";
 
-const FROM_ADDRESS = "JaySync-Lab Playground <ops@jslnode.anujajay.com>";
+const FROM_ADDRESS = "JaySync-Lab Playground <ops@jaysynclab.com>";
 
 export async function addToQueue(email: string): Promise<void> {
   await redis.sadd(QUEUE_KEY, email);
