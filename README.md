@@ -1,8 +1,8 @@
 # ⚡ jaysync-lab-playground
 
-> Real, disposable **Linux terminal sessions in the browser** — spun up on demand, destroyed the moment you disconnect. Live at **[jslnode.anujajay.com](https://jslnode.anujajay.com)**.
+> Real, disposable **Linux terminal sessions in the browser** — spun up on demand, destroyed the moment you disconnect. Live at **[jslnode.jaysynclab.com](https://jslnode.jaysynclab.com)**.
 
-[![Live](https://img.shields.io/website?url=https%3A%2F%2Fjslnode.anujajay.com&label=jslnode.anujajay.com&up_message=online)](https://jslnode.anujajay.com)
+[![Live](https://img.shields.io/website?url=https%3A%2F%2Fjslnode.jaysynclab.com&label=jslnode.jaysynclab.com&up_message=online)](https://jslnode.jaysynclab.com)
 ![Frontend](https://img.shields.io/badge/frontend-Next.js_16-000000)
 ![Backend](https://img.shields.io/badge/backend-FastAPI-009688)
 
@@ -14,8 +14,8 @@ Not a simulation and not a shared shell — every visitor gets a **genuine, isol
 
 ```mermaid
 flowchart LR
-    U[Visitor browser<br/>xterm.js] -->|WebSocket| V["Frontend<br/>Vercel · jslnode.anujajay.com"]
-    V -->|Cloudflare Tunnel| C["Controller · FastAPI<br/>CT 105 · api-jslnode.anujajay.com"]
+    U[Visitor browser<br/>xterm.js] -->|WebSocket| V["Frontend<br/>Vercel · jslnode.jaysynclab.com"]
+    V -->|Cloudflare Tunnel| C["Controller · FastAPI<br/>CT 105 · api-jslnode.jaysynclab.com"]
     C -->|clone + start| S["Session container<br/>isolated · vmbr_sandbox"]
     C -.clones from.-> T["Golden template<br/>CT 180"]
     C -.reaper.-> S
@@ -28,8 +28,8 @@ A visitor connects → the controller clones **CT 180** into a fresh session con
 | Repo | What it is | Live |
 |:-----|:-----------|:-----|
 | [JaySync-Lab](https://github.com/JaySync-Lab/JaySync-Lab) | Infrastructure docs + inventory — the source of truth | — |
-| [jaysync-lab-site](https://github.com/JaySync-Lab/jaysync-lab-site) | Next.js + Fumadocs docs site | [lab.anujajay.com](https://lab.anujajay.com) |
-| **jaysync-lab-playground** *(here)* | This playground | [jslnode.anujajay.com](https://jslnode.anujajay.com) |
+| [jaysync-lab-site](https://github.com/JaySync-Lab/jaysync-lab-site) | Next.js + Fumadocs docs site | [jaysynclab.com](https://jaysynclab.com) |
+| **jaysync-lab-playground** *(here)* | This playground | [jslnode.jaysynclab.com](https://jslnode.jaysynclab.com) |
 
 ---
 
@@ -62,4 +62,4 @@ A visitor connects → the controller clones **CT 180** into a fresh session con
 
 **Phase 4 complete — live in production.** Network foundation, the golden template, the session controller, and the public web interface are all built, tested against the real host, and deployed. Full history in [`implementation-log.md`](implementation-log.md).
 
-🔗 **Try it:** [jslnode.anujajay.com](https://jslnode.anujajay.com)
+🔗 **Try it:** [jslnode.jaysynclab.com](https://jslnode.jaysynclab.com)

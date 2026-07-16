@@ -6,7 +6,7 @@ ecosystem picture, also read `JaySync-Lab`'s `CLAUDE.md`.
 ## What this is
 
 Real, disposable Linux terminal sessions in the browser — live at
-**[jslnode.anujajay.com](https://jslnode.anujajay.com)**. Every visitor gets
+**[jslnode.jaysynclab.com](https://jslnode.jaysynclab.com)**. Every visitor gets
 a genuine, isolated Proxmox container, cloned from a hardened golden
 template (CT 180), destroyed on disconnect. Not a simulation.
 

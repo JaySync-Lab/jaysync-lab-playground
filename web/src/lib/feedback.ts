@@ -65,7 +65,7 @@ export async function createFeedbackIssue(type: FeedbackType, message: string): 
     },
     body: JSON.stringify({
       title: buildTitle(type, message),
-      body: `**Type:** ${TYPE_TITLES[type]}\n\n**Message:**\n\n${message.trim()}\n\n---\n*Submitted via the feedback form on jslnode.anujajay.com.*`,
+      body: `**Type:** ${TYPE_TITLES[type]}\n\n**Message:**\n\n${message.trim()}\n\n---\n*Submitted via the feedback form on jslnode.jaysynclab.com.*`,
       labels: [TYPE_LABELS[type]],
     }),
   });
