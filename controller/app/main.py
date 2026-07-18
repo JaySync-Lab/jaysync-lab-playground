@@ -52,12 +52,12 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Playground Session Controller", lifespan=lifespan)
 
 # Step 4.1: the controller is now reachable publicly via the Cloudflare
-# Tunnel (api.jslnode.anujajay.com), so the frontend on its own separate
-# origin (jslnode.anujajay.com) needs explicit CORS allowance -- plus
+# Tunnel (api-jslnode.jaysynclab.com), so the frontend on its own separate
+# origin (jslnode.jaysynclab.com) needs explicit CORS allowance -- plus
 # localhost:3000 for local frontend dev against the real backend.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://jslnode.anujajay.com", "http://localhost:3000"],
+    allow_origins=["https://jslnode.jaysynclab.com", "http://localhost:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
