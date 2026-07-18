@@ -1,6 +1,6 @@
 import { Redis } from "@upstash/redis";
 import { checkHealth } from "@/lib/api";
-import { sendEmail } from "@/lib/email";
+import { sendEmail, renderEmailShell } from "@/lib/email";
 
 // Redis.fromEnv() looks for UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN,
 // but this project's Vercel KV integration only sets KV_REST_API_URL/
@@ -36,8 +36,32 @@ async function setLastState(state: "up" | "down"): Promise<void> {
   await redis.set(LAST_STATE_KEY, state);
 }
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 async function sendRecoveryEmail(to: string): Promise<void> {
+  const bodyHtml = `
+    <p style="margin:0 0 16px;">Hey ${escapeHtml(to)},</p>
+    <p style="margin:0 0 16px;">
+      The playground came back up, and you're on the list because you
+      signed up for a heads-up the last time it went down. Come take it
+      for a spin:
+    </p>
+    <p style="margin:0 0 20px;">
+      <a href="https://jslnode.jaysynclab.com" style="display:inline-block;background:#4ee3a8;color:#050607;padding:10px 18px;border-radius:6px;font-weight:600;text-decoration:none;">Open the playground &rarr;</a>
+    </p>
+    <p style="margin:0;color:#52525b;font-size:12px;">
+      This list is cleared after every recovery, so you won't hear from
+      this address again unless you sign up during a future outage.
+    </p>`;
+
   const text =
+    `Hey ${to},\n\n` +
     "The JaySync-Lab playground is back online -- give it a try:\n\n" +
     "https://jslnode.jaysynclab.com\n\n" +
     "You're getting this because you signed up while it was down. " +
@@ -49,7 +73,7 @@ async function sendRecoveryEmail(to: string): Promise<void> {
     from: FROM_ADDRESS,
     subject: "The playground is back",
     text,
-    html: text.replace(/\n/g, "<br/>"),
+    html: renderEmailShell({ eyebrow: "Back online", heading: "The playground is back", bodyHtml }),
   });
 }
 
