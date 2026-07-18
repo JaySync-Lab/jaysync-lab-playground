@@ -2,7 +2,14 @@ import { Redis } from "@upstash/redis";
 import { checkHealth } from "@/lib/api";
 import { sendEmail } from "@/lib/email";
 
-const redis = Redis.fromEnv();
+// Redis.fromEnv() looks for UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN,
+// but this project's Vercel KV integration only sets KV_REST_API_URL/
+// KV_REST_API_TOKEN -- construct explicitly instead of keeping two copies
+// of the same secret in sync.
+const redis = new Redis({
+  url: process.env.KV_REST_API_URL!,
+  token: process.env.KV_REST_API_TOKEN!,
+});
 
 // Step 4.5: KV keys. QUEUE_KEY is a Redis SET (automatic dedup) of emails
 // collected during the *current* outage -- cleared entirely once a
