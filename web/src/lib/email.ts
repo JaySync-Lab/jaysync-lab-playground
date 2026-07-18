@@ -64,7 +64,7 @@ export function renderEmailShell(opts: { eyebrow: string; heading: string; bodyH
             </tr>
             <tr>
               <td style="padding:16px 28px;border-top:1px solid #1c2228;color:#52525b;font-size:11px;">
-                JaySync-Lab Playground &middot; <a href="https://jslnode.jaysynclab.com" style="color:#52525b;">jslnode.jaysynclab.com</a>
+                JaySync-Lab Playground &middot; <a href="https://anujajay.com" style="color:#52525b;">anujajay.com</a>
               </td>
             </tr>
           </table>
