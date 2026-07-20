@@ -21,5 +21,5 @@ set -u
 wget -q -O- --timeout=15 --tries=1 \
   --header="Authorization: Bearer ${HOST_ONLINE_SECRET}" \
   --post-data="" \
-  https://jslnode.anujajay.com/api/host-online
+  https://jslnode.jaysynclab.com/api/host-online
 exit 0
